@@ -84,8 +84,11 @@ export async function openFile(): Promise<{
     try {
       const [handle] = await fsWindow.showOpenFilePicker({ types: PICKER_TYPES });
       const html = await (await handle.getFile()).text();
+      // 判定（await）を全部済ませてから、上書き保存の宛先とフォルダを続けて切り替える。
+      // 途中で例外が出たときに、宛先だけが新しいファイルに変わって前のデッキを書いてしまわないように
+      const keepDir = currentDir !== null && (await isDirectlyIn(currentDir, handle));
       currentHandle = handle;
-      if (currentDir && !(await isDirectlyIn(currentDir, handle))) currentDir = null;
+      if (!keepDir) currentDir = null;
       return { html, name: handle.name, canReadFolder: Boolean(fsWindow.showDirectoryPicker), folderReady: currentDir !== null };
     } catch (e) {
       if (isAbort(e)) return null;
