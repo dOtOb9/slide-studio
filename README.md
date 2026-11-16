@@ -39,8 +39,12 @@ src/
     render.ts       Slide → 表示用 HTML（位置を解決して絶対配置にする）
     commands.ts     編集操作（古い Deck → 新しい Deck）
     geometry.ts     リサイズなどの位置計算
+  io/             ← ファイルの読み書き（Elm でいう Cmd）
+    file.ts              File System Access API（無ければ input / ダウンロード）
+    commands.ts          開く・保存の手順（終わったら Msg を送る）
   hooks/          ← DOM の出来事を Msg に変える
     useKeyboard.ts       キー入力
+    useUnsavedGuard.ts   未保存の表示と、閉じるときの確認
     useBoxMeasurement.ts 描画後の要素位置の測定
     useTextEditing.ts    テキスト編集（contentEditable）
     useElementSize.ts    領域の大きさ
@@ -66,3 +70,10 @@ src/
 | Delete | 削除 |
 | 矢印キー | 1px 移動（Shift で 10px）。未選択時はスライド移動 |
 | Ctrl+Z / Ctrl+Y（Ctrl+Shift+Z） | 元に戻す / やり直し |
+| Ctrl+O / Ctrl+S / Ctrl+Shift+S | 開く / 上書き保存 / 名前を付けて保存（Chrome・Edge は開いたファイルに直接上書き。他のブラウザはダウンロード） |
+| Ctrl+M | 新しいスライド（表示中と同じレイアウト。表紙からなら2番目のレイアウト） |
+| Ctrl+D（要素を選んでいないとき） | スライドの複製 |
+| サムネイルのドラッグ | スライドの並べ替え |
+| ツールバー | 上記に加え、レイアウトを選んでスライド追加、スライドの削除 |
+
+空のプレースホルダーには、編集画面だけ「ダブルクリックしてタイトルを入力」などの案内が出る（保存・書き出しには含まれない）。
