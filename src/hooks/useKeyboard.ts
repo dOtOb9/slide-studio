@@ -6,9 +6,6 @@ import { useEffect } from 'react';
 import { getModel, useDispatch } from '../app/store';
 import { openDeck, saveDeck } from '../io/commands';
 
-/** ブラウザ標準の動作（矢印でのスクロール、Ctrl+D のブックマークなど）を止める Ctrl 系のキー */
-const APP_MOD_KEYS = /^[zymdso]$/i;
-
 export function useKeyboard() {
   const dispatch = useDispatch();
 
@@ -35,10 +32,16 @@ export function useKeyboard() {
       // （Ctrl+Z などは、元に戻すボタンを押した直後でも効くよう、ここでは止めない）
       const onControl = e.target instanceof Element && e.target.closest('button, input, label, select');
       if ((e.key === 'Enter' || e.key === ' ') && onControl) return;
-      if (e.key.startsWith('Arrow') || e.key === 'Enter' || (mod && APP_MOD_KEYS.test(e.key))) {
-        e.preventDefault();
-      }
+
+      // 矢印と Enter は、ブラウザ標準の動作（スクロールなど）を常に止める
+      if (e.key.startsWith('Arrow') || e.key === 'Enter') e.preventDefault();
+
+      const before = getModel();
       dispatch({ type: 'KeyPressed', key: e.key, shift: e.shiftKey, mod });
+      // Ctrl 系のキーは、アプリが実際に何かをした（Model が変わった）ときだけブラウザ標準の動作を止める。
+      // こうしておけば、機能が onKey で新しいショートカットを足しても、ここを書き換えなくてよい。
+      // 下の一覧は、Model が変わらない場面でもブラウザの動作（ブックマーク・新規ウィンドウなど）を出したくないキー
+      if (mod && (getModel() !== before || /^[zymd]$/i.test(e.key))) e.preventDefault();
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
