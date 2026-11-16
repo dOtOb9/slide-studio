@@ -19,8 +19,12 @@ export interface KeyInput {
 
 export type CoreMsg =
   // ファイル（読み書き自体は io/ で行い、終わった結果だけを送る）
-  | { type: 'DeckLoaded'; deck: Deck; fileName: string }
-  | { type: 'DeckSaved'; deck: Deck; fileName: string } // deck は「保存した時点の」Deck
+  // canReadFolder: 隣の images/ を読みに行けるか（省略すると、開いたときは false、保存したときは今のまま）
+  | { type: 'DeckLoaded'; deck: Deck; fileName: string; canReadFolder?: boolean }
+  | { type: 'DeckSaved'; deck: Deck; fileName: string; canReadFolder?: boolean } // deck は「保存した時点の」Deck
+  // images/ の画像の中身が届いた（フォルダから読んだ・プラグインが挿入する画像を用意した）。
+  // キーは画像のパス（images/<SHA-256>.<拡張子>）。プラグインからも来るので、update の入口で中身を確かめる
+  | { type: 'ImagesAdded'; images: Record<string, Blob> }
   // スライドの操作
   | { type: 'SlideSelected'; index: number }
   | { type: 'SlideAdded'; after: number; layout: string }
