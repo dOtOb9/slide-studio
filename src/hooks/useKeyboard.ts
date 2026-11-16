@@ -27,6 +27,10 @@ export function useKeyboard() {
 
       // テキスト編集中のキーは文字入力（とブラウザ自身の Ctrl+Z）に任せる
       if (getModel().editingId) return;
+      // ノート欄など、文字を入力する欄でのキーも同様
+      if (e.target instanceof HTMLTextAreaElement || (e.target instanceof HTMLInputElement && e.target.type === 'text')) {
+        return;
+      }
       // ボタンなどにフォーカスがあるときの Enter / Space は、そのボタンを押す操作なのでブラウザに任せる
       // （Ctrl+Z などは、元に戻すボタンを押した直後でも効くよう、ここでは止めない）
       const onControl = e.target instanceof Element && e.target.closest('button, input, label, select');

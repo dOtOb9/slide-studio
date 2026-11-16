@@ -2,6 +2,7 @@
 
 import { isDirty } from '../app/model';
 import { useDispatch, useModel } from '../app/store';
+import { features } from '../features/registry';
 import { openDeck, saveDeck } from '../io/commands';
 
 export function Toolbar() {
@@ -69,6 +70,18 @@ export function Toolbar() {
           削除
         </button>
       </div>
+
+      {/* 各機能（features/）の部品 */}
+      {features.map((f) => {
+        const Section = f.ToolbarSection;
+        return (
+          Section && (
+            <div className="group" key={f.name}>
+              <Section />
+            </div>
+          )
+        );
+      })}
 
       <span className="filename">
         {fileName}
