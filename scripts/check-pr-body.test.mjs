@@ -128,6 +128,12 @@ vitest: 152 passed / tsc: エラーなし / eslint: エラーなし
     expect(problems[0]).toContain('差し戻し');
   });
 
+  it('「承認（差し戻しなし）」も不合格で、判定の欄に「差し戻し」を書かないよう案内する', () => {
+    const problems = checkPrBody(replaced('### 判定\n承認', '### 判定\n承認（差し戻しなし）'));
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain('「承認」とだけ書き');
+  });
+
   it('判定を型のまま「承認 | 差し戻し」にしたなら不合格', () => {
     expect(checkPrBody(replaced('### 判定\n承認', '### 判定\n承認 | 差し戻し'))).toHaveLength(1);
   });

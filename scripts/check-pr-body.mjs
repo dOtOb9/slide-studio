@@ -127,7 +127,8 @@ export function checkPrBody(body) {
   if (verdict === null) {
     problems.push('監査役のレビューの節に「判定」がない');
   } else if (verdict.includes('差し戻し')) {
-    problems.push('判定が「差し戻し」を含む（承認されていない PR は Draft で出す）');
+    // 「承認（差し戻しなし）」も落ちる。経緯は判定の欄ではなく「やり取りの要約」に書いてもらう（audit-1 #4）
+    problems.push('判定の欄に「差し戻し」の語がある（承認なら判定の欄には「承認」とだけ書き、往復の経緯は「やり取りの要約」へ。承認されていない PR は Draft で出す）');
   } else if (!/(?<![未非不])承認/.test(verdict)) {
     problems.push('判定に「承認」がない');
   }
