@@ -1,12 +1,28 @@
 * { box-sizing: border-box; }
 
+/* 色（UI の方針: 境界は線でなく、背景の色差と余白で表す。AGENTS.md「UI の方針」）。
+   プラグインの部品も、この変数を使えばアプリと同じ見た目になる（README「プラグイン」） */
+:root {
+  --bg-app: #e9ecef;       /* 一番下の地（作業領域） */
+  --bg-surface: #fff;      /* 地の上に乗る面（ツールバー・ノート欄・パネル） */
+  --bg-sunken: #f1f3f5;    /* 面の中のくぼみ（ボタンのまとまり・入力欄・スライド一覧） */
+  --bg-hover: #e3e7eb;     /* 押せるものに乗ったとき */
+  --bg-selected: #dbe7fb;  /* 選んでいるもの */
+  --fg: #1f2933;           /* 文字 */
+  --fg-muted: #616e7c;     /* 控えめな文字・アイコン */
+  --accent: #3b82f6;       /* 選択・挿入位置などの強調 */
+  --warning: #8a5a00;
+  --dirty: #e67700;
+  --shadow-float: 0 6px 24px rgb(0 0 0 / .14); /* 浮いている面（パネル）の影 */
+}
+
 html, body, #root { height: 100%; margin: 0; }
 
 body {
   font-family: system-ui, "Yu Gothic UI", sans-serif;
   font-size: 14px;
-  color: #1f2933;
-  background: #e9ecef;
+  color: var(--fg);
+  background: var(--bg-app);
 }
 
 .app {
@@ -17,39 +33,81 @@ body {
   height: 100%;
 }
 
+/* ---- ツールバー ----
+   区切り線は使わない。ツールバーは白い面、ボタンのまとまり（.group）は面の中のくぼみ（--bg-sunken）で表す */
 .toolbar {
+  position: relative; /* プラグインの一覧パネルの位置の基準 */
   grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap; /* 入りきらないボタンは次の行へ */
   align-items: center;
-  gap: 6px 12px;
-  min-height: 44px;
+  gap: 8px;
+  min-height: 48px;
   padding: 6px 12px;
-  background: #fff;
-  border-bottom: 1px solid #d0d5db;
+  background: var(--bg-surface);
 }
+.toolbar .group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--bg-sunken);
+}
+.toolbar .group:empty { display: none; } /* 部品を出さないプラグインの場所は消す */
 
-.button {
-  padding: 4px 12px;
-  border: 1px solid #c3c9d0;
+/* 押せるもの（共通のクラス。プラグインの部品も使ってよい）。
+   .button      … 文字のボタン
+   .icon-button … アイコンだけのボタン（説明は title と aria-label に書く） */
+.button, .icon-button {
+  border: none;
   border-radius: 6px;
-  background: #f8f9fa;
+  background: var(--bg-sunken);
+  font: inherit;
+  color: inherit;
   cursor: pointer;
-  white-space: nowrap; /* ツールバーが混んでも、ラベルの途中で折り返さない */
+  white-space: nowrap; /* ツールバーが混んでも、途中で折り返さない */
 }
-.button:hover { background: #eef1f4; }
-button.button { font: inherit; color: inherit; }
-.button:disabled { opacity: .4; cursor: default; }
+.button { padding: 5px 12px; }
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 6px;
+  color: var(--fg-muted);
+}
+.icon-button svg { width: 18px; height: 18px; flex: none; }
+/* まとまりの中では、くぼみの色の上に乗るので、ボタン自身は透明にする */
+.group .button, .group .icon-button { background: transparent; }
+.button:hover, .icon-button:hover { background: var(--bg-hover); color: var(--fg); }
+.button:disabled, .icon-button:disabled { opacity: .35; cursor: default; background: transparent; }
+.icon-button[aria-pressed="true"], .icon-button[aria-expanded="true"] { background: var(--bg-selected); color: var(--fg); }
+.button:focus-visible, .icon-button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* 新しいスライド: 見た目はアイコンのボタン、中身は透明な <select> を重ねる（選択肢はブラウザ標準のメニューで出す） */
+.select-button { position: relative; }
+.select-button select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+}
+.select-button:has(select:focus-visible) { outline: 2px solid var(--accent); outline-offset: -2px; }
+.select-button:has(select:disabled) { opacity: .35; }
 
 /* 狭いときはファイル名のほうを縮めて「…」で省く */
-.filename { color: #616e7c; margin-left: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dirty { color: #e67700; }
-.toolbar .group { display: flex; gap: 4px; padding-right: 12px; border-right: 1px solid #e4e7eb; }
-select.button { font: inherit; color: inherit; }
+.filename { color: var(--fg-muted); margin-left: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dirty { color: var(--dirty); }
 
-/* プラグインの一覧（ツールバーから開くパネル）。
-   ボタンは折り返しでどこにでも来うるので、ボタンではなくツールバーの右下に出す（画面からはみ出さないように） */
-.toolbar { position: relative; }
+/* ---- プラグインの一覧（ツールバーから開くパネル） ----
+   ボタンは折り返しでどこにでも来うるので、ボタンではなくツールバーの右下に出す（画面からはみ出さないように）。
+   枠線は使わず、白い面と影で浮かせる。行の区切りも線でなく余白で */
 .plugin-panel {
   position: absolute;
   top: calc(100% + 4px);
@@ -58,28 +116,40 @@ select.button { font: inherit; color: inherit; }
   z-index: 10;
   width: 400px;
   padding: 12px;
-  background: #fff;
-  border: 1px solid #c3c9d0;
-  border-radius: 8px;
-  box-shadow: 0 6px 20px rgb(0 0 0 / .15);
+  border-radius: 10px;
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-float);
 }
-.plugin-panel-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
-.plugin-close { margin-left: auto; border: none; background: none; font-size: 18px; cursor: pointer; color: #616e7c; }
-.plugin-muted { color: #7b8794; font-size: 12px; }
-.plugin-list { list-style: none; margin: 0 0 12px; padding: 0; }
-.plugin-list li { display: flex; align-items: flex-start; gap: 8px; padding: 6px 0; border-bottom: 1px solid #f0f2f4; }
+.plugin-panel-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.plugin-panel-head .icon-button { margin-left: auto; background: transparent; }
+.plugin-muted { color: var(--fg-muted); font-size: 12px; }
+.plugin-list { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.plugin-list li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; }
+.plugin-list li:hover { background: var(--bg-sunken); }
+.plugin-list li .icon-button { background: transparent; }
 .plugin-list label { display: flex; align-items: flex-start; gap: 8px; flex: 1; cursor: pointer; }
-.plugin-description { display: block; color: #616e7c; font-size: 12px; }
-.plugin-load { display: flex; flex-direction: column; gap: 6px; }
-.plugin-load form { display: flex; gap: 4px; }
-.plugin-load input { flex: 1; min-width: 0; padding: 4px 8px; border: 1px solid #c3c9d0; border-radius: 6px; font: inherit; }
-.plugin-warning { margin: 10px 0 0; color: #8a5a00; font-size: 12px; }
+.plugin-description { display: block; color: var(--fg-muted); font-size: 12px; }
+.plugin-load { display: flex; gap: 4px; }
+.plugin-load form { display: flex; gap: 4px; flex: 1; min-width: 0; }
+.plugin-load input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 10px;
+  border: none;
+  border-radius: 6px;
+  background: var(--bg-sunken);
+  font: inherit;
+  color: inherit;
+}
+.plugin-load input:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.plugin-warning { margin: 10px 0 0; color: var(--warning); font-size: 12px; }
 
+/* ---- スライド一覧 ----
+   作業領域（--bg-app）より明るい面にして、区切り線なしで分ける */
 .thumbs {
   overflow-y: auto;
   padding: 12px 8px;
-  background: #f8f9fa;
-  border-right: 1px solid #d0d5db;
+  background: var(--bg-sunken);
 }
 
 .thumb {
@@ -87,36 +157,41 @@ select.button { font: inherit; color: inherit; }
   gap: 6px;
   align-items: flex-start;
   width: 100%;
-  padding: 4px;
-  margin-bottom: 8px;
-  border: 2px solid transparent;
-  border-radius: 6px;
+  padding: 6px;
+  margin-bottom: 4px;
+  border: none;
+  border-radius: 8px;
   background: none;
   cursor: pointer;
   font: inherit;
+  color: inherit;
 }
-.thumb .num { width: 14px; color: #616e7c; text-align: right; font-size: 12px; }
-.thumb > div { box-shadow: 0 0 0 1px #d0d5db; }
-.thumb.active { border-color: #3b82f6; }
-/* ドラッグで並べ替えるときの挿入線 */
-.thumb.insert-before { box-shadow: 0 -4px 0 -1px #3b82f6; }
-.thumb.insert-after { box-shadow: 0 4px 0 -1px #3b82f6; }
+.thumb:hover { background: var(--bg-hover); }
+.thumb.active { background: var(--bg-selected); }
+.thumb .num { width: 14px; color: var(--fg-muted); text-align: right; font-size: 12px; }
+.thumb > div { box-shadow: 0 1px 3px rgb(0 0 0 / .18); } /* スライドの縮小表示は影で紙のように浮かせる */
+/* ドラッグで並べ替えるときの挿入位置（線でなく、位置を示す印として色の帯を出す） */
+.thumb.insert-before { box-shadow: 0 -3px 0 0 var(--accent); }
+.thumb.insert-after { box-shadow: 0 3px 0 0 var(--accent); }
 
 .main-column { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 
+/* ---- ノート欄 ----
+   作業領域（灰色）の上の白い面。枠線は付けない */
 .notes { height: 110px; padding: 0 24px 12px; }
 .notes textarea {
   width: 100%;
   height: 100%;
   resize: none;
-  padding: 8px 10px;
-  border: 1px solid #d0d5db;
-  border-radius: 6px;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
   font: inherit;
   color: inherit;
-  background: #fff;
+  background: var(--bg-surface);
 }
-
+.notes textarea::placeholder { color: var(--fg-muted); }
+.notes textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .stage {
   flex: 1;
   min-height: 0;

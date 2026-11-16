@@ -1,15 +1,17 @@
-// プラグインの一覧（view）。ツールバーの「プラグイン」ボタンで開く。
+// プラグインの一覧（view）。ツールバーのパズルのアイコンで開く。
 // 有効・無効の切り替え、外部プラグインの読み込み（ファイル・URL）と取り外しができる。
 //
 // プラグインの登録簿は Model ではなく plugins/host.ts にあり（関数を持ち、保存も元に戻すもしないため）、
 // 切り替えは host の関数を直接呼ぶ。ファイルの読み書きを io/ の手順で直接呼ぶのと同じ扱い。
 // パネルの開閉と URL の入力途中の文字は、見た目だけの一時状態なので、この部品の中に持つ。
 
+import { ArrowRight, FileUp, Puzzle, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 import { usePlugins } from '../hooks/usePlugins';
 import { loadPluginFromFile, loadPluginFromUrl } from '../io/plugins';
 import { API_VERSION } from '../plugin-api';
 import { setPluginEnabled, unregisterPlugin } from '../plugins/host';
+import { IconButton } from './IconButton';
 
 export function PluginManager() {
   const [open, setOpen] = useState(false);
@@ -18,17 +20,23 @@ export function PluginManager() {
 
   return (
     <div className="plugin-manager">
-      <button className="button" onClick={() => setOpen(!open)} aria-expanded={open} title="プラグインの一覧">
-        🧩 プラグイン
+      <button
+        className="icon-button"
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        title="プラグイン"
+        aria-label="プラグイン"
+      >
+        <Puzzle />
       </button>
       {open && (
         <div className="plugin-panel" role="dialog" aria-label="プラグイン">
           <div className="plugin-panel-head">
             <strong>プラグイン</strong>
             <span className="plugin-muted">API {API_VERSION}</span>
-            <button className="plugin-close" onClick={() => setOpen(false)} title="閉じる">
-              ×
-            </button>
+            <IconButton label="閉じる" onClick={() => setOpen(false)}>
+              <X />
+            </IconButton>
           </div>
 
           <ul className="plugin-list">
@@ -51,18 +59,18 @@ export function PluginManager() {
                 </label>
                 {/* 同梱のプラグインは取り外さない（無効にはできる） */}
                 {source === 'external' && (
-                  <button className="button" onClick={() => unregisterPlugin(plugin.name)} title="一覧から取り除く">
-                    取り除く
-                  </button>
+                  <IconButton label={`${plugin.title ?? plugin.name} を取り除く`} onClick={() => unregisterPlugin(plugin.name)}>
+                    <Trash2 />
+                  </IconButton>
                 )}
               </li>
             ))}
           </ul>
 
           <div className="plugin-load">
-            <button className="button" onClick={() => void loadPluginFromFile()}>
-              ファイルから読み込む…
-            </button>
+            <IconButton label="ファイルから読み込む" onClick={() => void loadPluginFromFile()}>
+              <FileUp />
+            </IconButton>
             <form
               onSubmit={(e) => {
                 e.preventDefault(); // ページの再読み込みを止める
@@ -73,13 +81,14 @@ export function PluginManager() {
               <input
                 type="text"
                 inputMode="url"
-                placeholder="https://…/plugin.js"
+                placeholder="URL から読み込む（https://…/plugin.js）"
+                aria-label="プラグインの URL"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
               />
-              <button className="button" type="submit" disabled={!url.trim()}>
-                URL から読み込む
-              </button>
+              <IconButton type="submit" label="URL から読み込む" disabled={!url.trim()}>
+                <ArrowRight />
+              </IconButton>
             </form>
           </div>
 
