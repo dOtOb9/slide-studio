@@ -34,16 +34,20 @@ describe('updateElement（異常な入力）', () => {
     expect(serializeDeck(next)).not.toContain('NaN');
   });
 
-  it('存在しない id なら何も変わらない', () => {
-    const next = updateElement(deck, slide.id, 'no-such-id', { html: 'x' });
-    expect(serializeDeck(next)).toBe(serializeDeck(deck));
+  it('存在しない id なら元の Deck をそのまま返す', () => {
+    expect(updateElement(deck, slide.id, 'no-such-id', { html: 'x' })).toBe(deck);
+  });
+
+  it('丸めた結果が同じなら元の Deck をそのまま返す（空の履歴を積まないため）', () => {
+    const moved = updateElement(deck, slide.id, title.id, { rect: { x: 300 } });
+    expect(updateElement(moved, slide.id, title.id, { rect: { x: 300.3 } })).toBe(moved);
+    expect(updateElement(deck, slide.id, title.id, { html: title.html })).toBe(deck);
   });
 });
 
 describe('deleteElement', () => {
-  it('存在しない id なら何も消えない', () => {
-    const next = deleteElement(deck, slide.id, 'no-such-id');
-    expect(next.slides[1].elements).toHaveLength(slide.elements.length);
+  it('存在しない id なら元の Deck をそのまま返す', () => {
+    expect(deleteElement(deck, slide.id, 'no-such-id')).toBe(deck);
   });
 
   it('要素を取り除く', () => {
