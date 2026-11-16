@@ -1,0 +1,20 @@
+// 要素の大きさを監視するフック。ウィンドウを広げるとキャンバスも追従する。
+
+import { useEffect, useRef, useState } from 'react';
+
+export function useElementSize<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  const [size, setSize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    const el = ref.current!;
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      setSize({ width, height });
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  return [ref, size] as const;
+}
