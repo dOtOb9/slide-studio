@@ -5,8 +5,13 @@
 import { create } from 'zustand';
 import * as commands from './model/commands';
 import { parseDeck } from './model/parse';
-import type { Deck } from './model/types';
+import type { Deck, Rect } from './model/types';
 import sample from './samples/sample-deck.html?raw';
+
+/** 画面に描画された要素の実際の位置とサイズ（スライド px）。DOM から測った値 */
+export interface Box extends Rect {
+  id: string;
+}
 
 interface DeckState {
   deck: Deck;
@@ -14,6 +19,13 @@ interface DeckState {
   current: number; // 表示中のスライド番号（0 始まり）
   selectedId: string | null; // 選択中の要素
   editingId: string | null; // テキスト編集中の要素
+  /**
+   * 表示中のスライドの各要素の実際の位置（EditorCanvas が描画後に測って入れる）。
+   * left/top や width を書いていない要素もあるので、ファイルの値ではなく「実際に表示された位置」を
+   * 移動・リサイズ・矢印キーの起点として使う。Deck の一部ではなく、保存もしない。
+   */
+  boxes: Box[];
+  setBoxes: (boxes: Box[]) => void;
 
   load: (html: string, fileName: string) => void;
   select: (index: number) => void;
@@ -37,6 +49,8 @@ export const useDeckStore = create<DeckState>()((set, get) => {
     current: 0,
     selectedId: null,
     editingId: null,
+    boxes: [],
+    setBoxes: (boxes) => set({ boxes }),
 
     load: (html, fileName) =>
       set({ deck: parseDeck(html), fileName, current: 0, selectedId: null, editingId: null }),

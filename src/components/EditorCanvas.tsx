@@ -8,15 +8,17 @@
 // 操作するとまず store を書き換える。
 // store が変わる → SlideView が描き直される → 位置を測り直す → プロキシや枠も動く、という一方通行の流れ。
 
-import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react';
-import type { Rect } from '../model/types';
-import { useDeckStore } from '../store';
+import { useCallback, useEffect, useRef, type PointerEvent } from 'react';
+import { useDeckStore, type Box } from '../store';
 import { SelectionFrame } from './SelectionFrame';
 import { SlideView } from './SlideView';
 
-/** 要素の実際の位置とサイズ（スライド座標、px） */
-interface Box extends Rect {
-  id: string;
+/** 測り直した結果が前回と同じかどうか（同じなら store を更新せず、余計な再描画を避ける） */
+function sameBoxes(a: Box[], b: Box[]): boolean {
+  return (
+    a.length === b.length &&
+    a.every((p, i) => p.id === b[i].id && p.x === b[i].x && p.y === b[i].y && p.w === b[i].w && p.h === b[i].h)
+  );
 }
 
 export function EditorCanvas({ width }: { width: number }) {
@@ -31,29 +33,47 @@ export function EditorCanvas({ width }: { width: number }) {
   const slide = deck.slides[current];
   const scale = width / deck.width;
 
+  const boxes = useDeckStore((s) => s.boxes);
+  const setBoxes = useDeckStore((s) => s.setBoxes);
+
   const rootRef = useRef<ShadowRoot | null>(null);
-  const [boxes, setBoxes] = useState<Box[]>([]);
+  const observerRef = useRef<ResizeObserver | null>(null);
 
   // --- 1. 描画後に、各要素の実際の位置を測る -------------------------------
   // 幅や高さが指定されていない要素（文字数で幅が決まる等）もあるので、データからではなく DOM から測る。
   // offsetLeft などは transform の影響を受けないので、スライド座標の値がそのまま取れる。
-  const measure = useCallback((root: ShadowRoot) => {
-    rootRef.current = root;
-    const nodes = root.querySelectorAll<HTMLElement>('section > [data-id]');
-    setBoxes(
-      Array.from(nodes, (n) => ({
-        id: n.dataset.id!,
-        x: n.offsetLeft,
-        y: n.offsetTop,
-        w: n.offsetWidth,
-        h: n.offsetHeight,
-      })),
-    );
-  }, []);
+  const measure = useCallback(
+    (root: ShadowRoot) => {
+      rootRef.current = root;
+      const nodes = Array.from(root.querySelectorAll<HTMLElement>('section > [data-id]'));
+      const read = () => {
+        const next = nodes.map((n) => ({
+          id: n.dataset.id!,
+          x: n.offsetLeft,
+          y: n.offsetTop,
+          w: n.offsetWidth,
+          h: n.offsetHeight,
+        }));
+        if (!sameBoxes(useDeckStore.getState().boxes, next)) setBoxes(next);
+      };
+      read();
+      // 描画の後で大きさが変わることがある（画像の読み込み完了、Web フォントの適用など）。
+      // ResizeObserver で各要素を見張り、大きさが変わったら測り直す
+      observerRef.current?.disconnect();
+      observerRef.current = new ResizeObserver(read);
+      nodes.forEach((n) => observerRef.current!.observe(n));
+    },
+    [setBoxes],
+  );
+
+  // キャンバスが画面から消えるときは見張りをやめる
+  useEffect(() => () => observerRef.current?.disconnect(), []);
 
   // --- 2. 選択と移動（ドラッグ） ---------------------------------------------
   // 「押した位置からマウスがどれだけ動いたか」を scale で割って、押した時点の要素の位置に足すだけ。
   // ドラッグ中の情報は描画に使わないので、state ではなく ref に持つ（変えても再描画が起きない）
+  // TODO(Step 3): いまは pointermove のたびに updateElement が走る。undo を入れるときは
+  //   pointerdown〜pointerup を「1回の操作」としてまとめ、履歴が1件になるようにする（リサイズも同様）
   const dragRef = useRef<{
     id: string;
     pointerX: number; // 押した時のマウス位置（画面 px）
@@ -124,7 +144,12 @@ export function EditorCanvas({ width }: { width: number }) {
       stopEditing();
     };
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') node.blur();
+      if (e.key === 'Escape') {
+        // キーイベントは Shadow DOM を越えて window まで届く。
+        // 止めないと App の「Esc で選択解除」まで動くので、ここで止める（PowerPoint と同じく選択は残す）
+        e.stopPropagation();
+        node.blur();
+      }
     };
     node.addEventListener('blur', finish);
     node.addEventListener('keydown', onKeyDown);
@@ -133,6 +158,10 @@ export function EditorCanvas({ width }: { width: number }) {
       node.removeEventListener('keydown', onKeyDown);
     };
   }, [editingId]);
+
+  // スライドが無ければ何も描かない。
+  // フックは毎回同じ順番で呼ばれる必要があるので、この return はすべてのフックより後に置く
+  if (!slide) return null;
 
   const selectedEl = slide.elements.find((x) => x.id === selectedId);
   const selectedBox = boxes.find((b) => b.id === selectedId);

@@ -2,7 +2,6 @@ import { useEffect, type ChangeEvent } from 'react';
 import { EditorCanvas } from './components/EditorCanvas';
 import { SlideView } from './components/SlideView';
 import { useElementSize } from './hooks/useElementSize';
-import { resolveRect } from './model/render';
 import { useDeckStore } from './store';
 
 /** キー操作。最新の状態は getState() で読むので、登録は1回だけで済む */
@@ -23,10 +22,12 @@ function onKeyDown(e: KeyboardEvent) {
       e.preventDefault();
       s.startEditing(el.id);
     } else if (e.key.startsWith('Arrow')) {
-      // 矢印キーで 1px（Shift で 10px）動かす
+      // 矢印キーで 1px（Shift で 10px）動かす。起点はドラッグと同じく「実際に表示された位置」
+      const box = s.boxes.find((b) => b.id === el.id);
+      if (!box) return;
       e.preventDefault();
       const step = e.shiftKey ? 10 : 1;
-      const { x = 0, y = 0 } = resolveRect(s.deck, slide, el);
+      const { x, y } = box;
       const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
       const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
       s.updateElement(el.id, { rect: { x: x + dx, y: y + dy } });
@@ -91,7 +92,8 @@ export default function App() {
         ref={stageRef}
         onPointerDown={(e) => e.target === e.currentTarget && selectElement(null)}
       >
-        {fitWidth > 0 && (
+        {/* スライドが 0 枚のファイルもありうる */}
+        {deck.slides[current] && fitWidth > 0 && (
           <div className="canvas">
             <EditorCanvas width={fitWidth} />
           </div>
