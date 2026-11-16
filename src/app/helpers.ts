@@ -1,7 +1,7 @@
 // update と各機能（features/）が共通で使う、Model を扱う小さな道具。
 // どれも純粋な関数。
 
-import type { Deck } from '../model/types';
+import type { Deck, SlideElement } from '../model/types';
 import type { Model } from './model';
 
 const HISTORY_LIMIT = 100; // 元に戻せる回数の上限
@@ -46,6 +46,14 @@ export function currentSlideId(model: Model): string {
 
 export function findElement(model: Model, id: string) {
   return model.deck.slides[model.current]?.elements.find((e) => e.id === id);
+}
+
+/**
+ * テキスト編集（contentEditable）に入れる要素か。
+ * 画像と SVG は contentEditable が効かず、フォーカスもできないので、編集に入ると抜けられなくなる
+ */
+export function isTextEditable(el: SlideElement): boolean {
+  return el.tag !== 'img' && el.tag !== 'svg';
 }
 
 export function clampSlide(deck: Deck, index: number): number {

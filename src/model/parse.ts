@@ -80,8 +80,13 @@ function parseSlide(section: Element): Slide {
     // section の直下の要素は、ノート以外すべてスライド上の要素として扱う。
     // data-el が付いていなくても受け入れる（AI が付け忘れても壊れないように）
     elements: children.filter((el) => !isNotes(el)).map(parseElement),
-    // ノートはプレーンテキストとして読む（タグが書かれていても文字だけを取り出す）
-    notes: children.find(isNotes)?.textContent?.trim() ?? '',
+    // ノートはプレーンテキストとして読む（タグが書かれていても文字だけを取り出す）。
+    // 複数書かれていたら改行でつなぐ（保存すると1つにまとまる）
+    notes: children
+      .filter(isNotes)
+      .map((a) => a.textContent?.trim() ?? '')
+      .filter(Boolean)
+      .join('\n'),
   };
 }
 

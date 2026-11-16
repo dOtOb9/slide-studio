@@ -21,6 +21,7 @@ import {
   edit,
   findElement,
   isBusy,
+  isTextEditable,
   pushHistory,
   showSlide,
   withNewIds,
@@ -79,7 +80,23 @@ export function update(model: Model, msg: Msg): Model {
     case 'NotesCommitted': {
       const slide = model.deck.slides[msg.index];
       if (!slide) return model;
-      return edit(model, setNotes(model.deck, slide.id, msg.notes));
+      // 読み込み時に前後の空白を除くので、確定時も同じにする（保存して開き直しても変わらないように）
+      const notes = msg.notes.trim();
+      const next = setNotes(model.deck, slide.id, notes);
+      if (next === model.deck) return model;
+      const g = model.gesture;
+      if (g) {
+        // ドラッグ中にノートが確定した場合（通常は view が先に確定させるので起きないが、念のため）:
+        // ドラッグの開始前の Deck にもノートを反映しておく。そうしないと、要素が動かなかったときに
+        // DragEnded が開始前の Deck に戻し、ノートが消えてしまう。
+        // 履歴には「ノートを変える前」を1件積み、ノートの変更だけを戻せるようにする
+        return {
+          ...pushHistory(model, g.before),
+          deck: next,
+          gesture: { ...g, before: setNotes(g.before, slide.id, notes) },
+        };
+      }
+      return edit(model, next);
     }
 
     case 'ElementSelected':
@@ -135,7 +152,7 @@ export function update(model: Model, msg: Msg): Model {
 
     case 'EditRequested': {
       const el = findElement(model, msg.id);
-      if (!el || el.tag === 'img' || model.gesture) return model;
+      if (!el || !isTextEditable(el) || model.gesture) return model;
       return { ...model, selectedId: msg.id, editingId: msg.id };
     }
 

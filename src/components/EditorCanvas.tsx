@@ -51,6 +51,9 @@ export function EditorCanvas({ width }: { width: number }) {
   const startDrag = (e: PointerEvent<HTMLDivElement>, id: string, handle: Handle | null) => {
     e.stopPropagation(); // 背景クリック（選択解除）として扱わせない
     if (e.button !== 0) return; // 左ボタンだけ
+    // ノート欄などに入力中なら、先にフォーカスを外して確定させる。
+    // そうしないと、確定（blur）がドラッグの開始より後に届き、順番が入れ替わる
+    (document.activeElement as HTMLElement | null)?.blur();
     // ポインタを捕まえておくと、マウスが箱の外に出ても move/up が届き続ける。
     // 届いたイベントは親のキャンバスまで伝わるので、move/up はキャンバス側でまとめて受ける
     e.currentTarget.setPointerCapture(e.pointerId);

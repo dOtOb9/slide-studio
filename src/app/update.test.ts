@@ -371,3 +371,37 @@ describe('キー操作の振り分け', () => {
     expect(update(m0, { type: 'KeyPressed', key: 'q', shift: false, mod: false })).toBe(m0);
   });
 });
+
+describe('発表者ノート（監査で見つかったケース）', () => {
+  it('前後の空白は除いて保存する（開き直しても変わらないように）', () => {
+    expect(update(setup(), { type: 'NotesCommitted', index: 2, notes: '  メモ\n' }).deck.slides[2].notes).toBe('メモ');
+  });
+
+  it('ドラッグの途中でノートが確定しても、要素が動かなければノートは残る', () => {
+    const m0 = setup();
+    const m = run(
+      m0,
+      { type: 'DragStarted', id: el(m0, 2).id, handle: null, pointer: p(0, 0) },
+      { type: 'NotesCommitted', index: 2, notes: 'NEW' },
+      { type: 'DragEnded' },
+    );
+    expect(m.deck.slides[2].notes).toBe('NEW');
+    expect(m.history.past).toHaveLength(1);
+    expect(update(m, { type: 'Undo' }).deck).toBe(m0.deck);
+  });
+
+  it('ドラッグの途中でノートが確定して要素も動いたら、移動とノートを別々に戻せる', () => {
+    const m0 = setup();
+    const m = run(
+      m0,
+      { type: 'DragStarted', id: el(m0, 2).id, handle: null, pointer: p(0, 0) },
+      { type: 'NotesCommitted', index: 2, notes: 'NEW' },
+      { type: 'DragMoved', pointer: p(50, 0), shift: false },
+      { type: 'DragEnded' },
+    );
+    const once = update(m, { type: 'Undo' });
+    expect(once.deck.slides[2].notes).toBe('NEW'); // 移動だけ戻る
+    expect(el(once, 2).rect.x).toBe(1240);
+    expect(update(once, { type: 'Undo' }).deck).toBe(m0.deck); // ノートも戻る
+  });
+});

@@ -84,3 +84,11 @@ describe('SVG の図形', () => {
     expect(arrow.html).toContain('<path');
   });
 });
+
+describe('発表者ノート（複数の aside）', () => {
+  it('複数書かれていたら改行でつなぎ、保存すると1つにまとまる', () => {
+    const deck = parseDeck('<body><section><aside data-notes> 1つ目 </aside><aside data-notes>2つ目</aside></section></body>');
+    expect(deck.slides[0].notes).toBe('1つ目\n2つ目');
+    expect(serializeDeck(deck).match(/<aside data-notes>/g)).toHaveLength(1);
+  });
+});
