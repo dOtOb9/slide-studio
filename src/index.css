@@ -37,7 +37,10 @@ body {
 button.button { font: inherit; color: inherit; }
 .button:disabled { opacity: .4; cursor: default; }
 
-.filename { color: #616e7c; }
+.filename { color: #616e7c; margin-left: auto; }
+.dirty { color: #e67700; }
+.toolbar .group { display: flex; gap: 4px; padding-right: 12px; border-right: 1px solid #e4e7eb; }
+select.button { font: inherit; color: inherit; }
 
 .thumbs {
   overflow-y: auto;
@@ -62,6 +65,9 @@ button.button { font: inherit; color: inherit; }
 .thumb .num { width: 14px; color: #616e7c; text-align: right; font-size: 12px; }
 .thumb > div { box-shadow: 0 0 0 1px #d0d5db; }
 .thumb.active { border-color: #3b82f6; }
+/* ドラッグで並べ替えるときの挿入線 */
+.thumb.insert-before { box-shadow: 0 -4px 0 -1px #3b82f6; }
+.thumb.insert-after { box-shadow: 0 4px 0 -1px #3b82f6; }
 
 .stage {
   display: flex;
@@ -79,6 +85,15 @@ button.button { font: inherit; color: inherit; }
 .overlay { position: absolute; inset: 0; pointer-events: none; }
 .proxy { position: absolute; pointer-events: auto; cursor: move; }
 .proxy:hover { outline: 1px dashed #3b82f6; }
+
+/* 中身が空のプレースホルダー */
+.proxy.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: 1px dashed #9aa5b1;
+}
+.ph-hint { color: #9aa5b1; font-size: 14px; pointer-events: none; user-select: none; }
 
 /* 選択枠。枠自体はクリックを素通しし（下のプロキシで移動できるように）、ハンドルだけが受ける */
 .selection-frame { position: absolute; outline: 1.5px solid #3b82f6; pointer-events: none; }

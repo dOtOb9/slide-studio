@@ -1,37 +1,79 @@
-// 上部のツールバー（view）。ファイルを開く・元に戻す・やり直し。
+// 上部のツールバー（view）。ファイル・履歴・スライドの操作。
 
-import type { ChangeEvent } from 'react';
+import { isDirty } from '../app/model';
 import { useDispatch, useModel } from '../app/store';
-import { parseDeck } from '../model/parse';
+import { openDeck, saveDeck } from '../io/commands';
 
 export function Toolbar() {
   const fileName = useModel((m) => m.fileName);
+  const dirty = useModel(isDirty);
   const canUndo = useModel((m) => m.history.past.length > 0);
   const canRedo = useModel((m) => m.history.future.length > 0);
+  const layouts = useModel((m) => m.deck.layouts);
+  const current = useModel((m) => m.current);
+  const hasSlide = useModel((m) => m.deck.slides.length > 0);
   const dispatch = useDispatch();
-
-  // ファイルの読み込みは非同期の「外の世界」とのやり取り（Elm でいう Cmd）。
-  // 読み終わって Deck に変換してから、結果を Msg として送る
-  const openFile = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = ''; // 同じファイルをもう一度選べるように
-    if (!file) return;
-    dispatch({ type: 'DeckLoaded', deck: parseDeck(await file.text()), fileName: file.name });
-  };
 
   return (
     <header className="toolbar">
-      <label className="button">
-        開く…
-        <input type="file" accept=".html,.htm" onChange={openFile} hidden />
-      </label>
-      <button className="button" disabled={!canUndo} onClick={() => dispatch({ type: 'Undo' })} title="元に戻す (Ctrl+Z)">
-        ↶ 元に戻す
-      </button>
-      <button className="button" disabled={!canRedo} onClick={() => dispatch({ type: 'Redo' })} title="やり直し (Ctrl+Y)">
-        ↷ やり直し
-      </button>
-      <span className="filename">{fileName}</span>
+      <div className="group">
+        <button className="button" onClick={() => void openDeck()} title="開く (Ctrl+O)">
+          開く…
+        </button>
+        <button className="button" onClick={() => void saveDeck()} title="上書き保存 (Ctrl+S)">
+          保存
+        </button>
+        <button className="button" onClick={() => void saveDeck(true)} title="名前を付けて保存 (Ctrl+Shift+S)">
+          名前を付けて保存…
+        </button>
+      </div>
+
+      <div className="group">
+        <button className="button" disabled={!canUndo} onClick={() => dispatch({ type: 'Undo' })} title="元に戻す (Ctrl+Z)">
+          ↶ 元に戻す
+        </button>
+        <button className="button" disabled={!canRedo} onClick={() => dispatch({ type: 'Redo' })} title="やり直し (Ctrl+Y)">
+          ↷ やり直し
+        </button>
+      </div>
+
+      <div className="group">
+        {/* 選んだレイアウトで、表示中のスライドの後ろに追加する。選んだら先頭の表示に戻す */}
+        <select
+          className="button"
+          value=""
+          title="新しいスライド (Ctrl+M)"
+          onChange={(e) => e.target.value && dispatch({ type: 'SlideAdded', after: current, layout: e.target.value })}
+        >
+          <option value="">＋ 新しいスライド…</option>
+          {layouts.map((l) => (
+            <option key={l.name} value={l.name}>
+              {l.name}
+            </option>
+          ))}
+        </select>
+        <button
+          className="button"
+          disabled={!hasSlide}
+          onClick={() => dispatch({ type: 'SlideDuplicated', index: current })}
+          title="スライドの複製 (Ctrl+D)"
+        >
+          複製
+        </button>
+        <button
+          className="button"
+          disabled={!hasSlide}
+          onClick={() => dispatch({ type: 'SlideDeleted', index: current })}
+          title="スライドの削除"
+        >
+          削除
+        </button>
+      </div>
+
+      <span className="filename">
+        {fileName}
+        {dirty && <span className="dirty" title="保存していない変更があります"> ●</span>}
+      </span>
     </header>
   );
 }
