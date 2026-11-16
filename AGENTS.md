@@ -19,6 +19,10 @@ npx eslint src       # lint
 ```
 
 作業の区切りでは、上の3つ（vitest / tsc / eslint）がすべて通っていること。
+
+**Windows の注意**: Git Bash で `cd /c/workspace/slide-studio` の形で移動して vitest を実行すると、
+全テストが `Cannot read properties of undefined (reading 'config')` で失敗する（コードの問題ではない）。
+PowerShell から実行するか、Git Bash なら `cd C:/workspace/slide-studio` の形で移動してから実行する。
 GUI の挙動を変えたときは、実ブラウザでも確認する（後述）。
 
 ## アーキテクチャの約束
