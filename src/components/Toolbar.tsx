@@ -1,9 +1,15 @@
 // 上部のツールバー（view）。ファイル・履歴・スライドの操作。
+//
+// UI の方針（AGENTS.md）: ボタンはアイコンで示し、説明の文字はツールチップ（title）に書く。
+// アイコンは lucide-react（SVG の部品。使ったアイコンだけがビルドに入る）。
+// まとまり（.group）は区切り線でなく、背景の色差で分ける（index.css）。
 
+import { Copy, FolderOpen, Plus, Redo2, Save, SaveAll, Trash2, Undo2 } from 'lucide-react';
 import { isDirty } from '../app/model';
 import { useDispatch, useModel } from '../app/store';
 import { usePlugins } from '../hooks/usePlugins';
 import { openDeck, saveDeck } from '../io/commands';
+import { IconButton } from './IconButton';
 import { PluginManager } from './PluginManager';
 import { PluginSlot } from './PluginSlot';
 
@@ -21,57 +27,60 @@ export function Toolbar() {
   return (
     <header className="toolbar">
       <div className="group">
-        <button className="button" onClick={() => void openDeck()} title="開く (Ctrl+O)">
-          開く…
-        </button>
-        <button className="button" onClick={() => void saveDeck()} title="上書き保存 (Ctrl+S)">
-          保存
-        </button>
-        <button className="button" onClick={() => void saveDeck(true)} title="名前を付けて保存 (Ctrl+Shift+S)">
-          名前を付けて保存…
-        </button>
+        <IconButton label="開く (Ctrl+O)" onClick={() => void openDeck()}>
+          <FolderOpen />
+        </IconButton>
+        <IconButton label="上書き保存 (Ctrl+S)" onClick={() => void saveDeck()}>
+          <Save />
+        </IconButton>
+        <IconButton label="名前を付けて保存 (Ctrl+Shift+S)" onClick={() => void saveDeck(true)}>
+          <SaveAll />
+        </IconButton>
       </div>
 
       <div className="group">
-        <button className="button" disabled={!canUndo} onClick={() => dispatch({ type: 'Undo' })} title="元に戻す (Ctrl+Z)">
-          ↶ 元に戻す
-        </button>
-        <button className="button" disabled={!canRedo} onClick={() => dispatch({ type: 'Redo' })} title="やり直し (Ctrl+Y)">
-          ↷ やり直し
-        </button>
+        <IconButton label="元に戻す (Ctrl+Z)" disabled={!canUndo} onClick={() => dispatch({ type: 'Undo' })}>
+          <Undo2 />
+        </IconButton>
+        <IconButton label="やり直し (Ctrl+Y)" disabled={!canRedo} onClick={() => dispatch({ type: 'Redo' })}>
+          <Redo2 />
+        </IconButton>
       </div>
 
       <div className="group">
-        {/* 選んだレイアウトで、表示中のスライドの後ろに追加する。選んだら先頭の表示に戻す */}
-        <select
-          className="button"
-          value=""
-          title="新しいスライド (Ctrl+M)"
-          onChange={(e) => e.target.value && dispatch({ type: 'SlideAdded', after: current, layout: e.target.value })}
-        >
-          <option value="">＋ 新しいスライド…</option>
-          {layouts.map((l) => (
-            <option key={l.name} value={l.name}>
-              {l.name}
+        {/* 見た目は ＋ のアイコン。上に透明な <select> を重ねてあり、押すとレイアウトの一覧が出る。
+            選んだレイアウトで、表示中のスライドの後ろに追加する。選んだら空の表示に戻す */}
+        <span className="icon-button select-button" title="新しいスライド (Ctrl+M)">
+          <Plus />
+          <select
+            value=""
+            aria-label="新しいスライド（レイアウトを選ぶ）"
+            onChange={(e) => e.target.value && dispatch({ type: 'SlideAdded', after: current, layout: e.target.value })}
+          >
+            <option value="" disabled>
+              レイアウトを選ぶ
             </option>
-          ))}
-        </select>
-        <button
-          className="button"
+            {layouts.map((l) => (
+              <option key={l.name} value={l.name}>
+                {l.name}
+              </option>
+            ))}
+          </select>
+        </span>
+        <IconButton
+          label="スライドの複製 (Ctrl+D)"
           disabled={!hasSlide}
           onClick={() => dispatch({ type: 'SlideDuplicated', index: current })}
-          title="スライドの複製 (Ctrl+D)"
         >
-          複製
-        </button>
-        <button
-          className="button"
+          <Copy />
+        </IconButton>
+        <IconButton
+          label="スライドの削除"
           disabled={!hasSlide}
           onClick={() => dispatch({ type: 'SlideDeleted', index: current })}
-          title="スライドの削除"
         >
-          削除
-        </button>
+          <Trash2 />
+        </IconButton>
       </div>
 
       {/* 有効なプラグインの部品（登録した順に並ぶ）。部品は自分で Model の変化を購読して描き直す */}

@@ -13,6 +13,7 @@
 // 互換性: API_VERSION は「メジャー.マイナー」。
 //   - 関数や欄を足しただけ（今までのプラグインはそのまま動く）→ マイナーを上げる
 //   - 消した・意味を変えた（今までのプラグインが壊れうる）→ メジャーを上げる
+// 部品の見た目の約束（README「プラグイン」の共通クラスと CSS 変数）も API に含める。消す・意味を変えるならメジャー。
 // プラグインは、自分が作られたときの版を apiVersion に書く。
 // 読み込めるのは「メジャーが同じで、マイナーがアプリ以下」のもの（isCompatible）。
 
@@ -29,7 +30,8 @@ import type { Model } from '../app/model';
 import type { KeyInput, Msg, PluginMsg } from '../app/msg';
 import { deleteElement, insertElement, setNotes, updateElement } from '../model/commands';
 
-export const API_VERSION = '1.0';
+// 1.1: 部品の見た目の約束（共通クラス .button / .icon-button と CSS 変数。README「プラグイン」）を足した
+export const API_VERSION = '1.1';
 
 // --- 型 ---------------------------------------------------------------------
 
