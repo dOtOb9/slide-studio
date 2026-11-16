@@ -42,7 +42,7 @@ deck.html ─parse─▶ Deck（Model の一部）─serialize─▶ deck.html
 
 | 層 | 置き場所 | 中身 |
 |---|---|---|
-| Model | `app/model.ts` | 保存するもの（Deck）、履歴、操作の状態（選択・ドラッグ・編集）、測った要素位置 |
+| Model | `app/model.ts` | 保存するもの（Deck）、履歴、操作の状態（選択・ドラッグ・編集）、測った要素位置、images/ の画像の中身（`images`。履歴と未保存の判定の外） |
 | Msg | `app/msg.ts` | 起こりうる出来事の一覧（判別可能な共用体） |
 | update | `app/update.ts` | `(Model, Msg) → Model` の純粋関数。履歴の積み方もここ |
 | ランタイム | `app/store.ts` | Model を持ち `dispatch(msg)` を受けるだけ。ロジックを書かない |
@@ -61,6 +61,7 @@ deck.html ─parse─▶ Deck（Model の一部）─serialize─▶ deck.html
 5. **履歴は「ユーザーの1操作 = 1件」。** ドラッグは `DragStarted` 〜 `DragEnded` で1件。Deck を変える Msg を足すときは、update 内で `edit()`（即1件積む）を使うか、ジェスチャーとしてまとめるかを決める。
 6. **例外: テキスト編集中の文字は DOM（contentEditable）が持つ。** 確定時に `TextCommitted` を送る。
    同様に、開いているファイルのハンドル（上書き保存の宛先）は `io/file.ts` が持つ（Model に入れられない外部資源のため）。
+   ファイルのあるフォルダのハンドル（images/ の読み書き。ユーザーが許可したときだけ）も同じく `io/file.ts` が持つ。
 7. **新しい id は update が Model の連番（`nextId`）から作る。** model/commands の関数には id を作る関数を引数で渡す。乱数や時刻を使わないので、テストで結果を予測できる。
 8. **「何も変わらない」ときは元の Deck をそのまま返す。** 未保存の判定（`deck !== savedDeck`）や空の履歴の防止は、この参照比較に頼っている。
 9. **スライドの見た目は `renderSlideHtml` だけが作る。** 画面・サムネイル・書き出しで同じ関数を使い、見た目を一致させる。編集画面だけの表示（空のプレースホルダーの案内など）はプロキシ側に出し、スライド本体には混ぜない。
@@ -89,6 +90,9 @@ Step 6 では「外部プラグインの title が文字列でない」「update
 | プラグインの関数の戻り値 | `update` / `onKey` の戻り値 | 登録簿の型 `ReceivedPlugin`（関数の欄の戻り値が `unknown`。どう呼んでも確かめずに使うと型エラー）、例外は `callPlugin` が受け止める → `looksLikeModel` / `looksLikeMsg` |
 | プラグインの部品 | `mount` の戻り値、`ctx.dispatch` に渡す値、`ctx.subscribe` に渡す関数 | `components/PluginSlot.tsx`（関数のときだけ呼ぶ）、`plugins/host.ts` の `checkMsgFromPlugin` / `listenerFromPlugin`（`app/store.ts` の `pluginContext` から呼ぶ） |
 | 開いたファイル（deck.html） | 人や AI が書いた HTML | `model/parse.ts`（知らない書き方は読める範囲で読む。README「ファイル形式」） |
+| deck.html の img の src | 画像のパス | `model/images.ts` の `isImagePath`（images/ 直下・決まった拡張子だけを管理対象にする。通らないものはただの文字列として残す） |
+| images/ から読んだファイル | 人や AI が置いたファイル | `model/images.ts` の `checkImageFile`（File でない・空・画像でない型・50MB 超は読まずに理由をコンソールへ。ほかの画像は読む）。`io/file.ts` の `readImageFiles` から呼ぶ |
+| `ImagesAdded` の `images` | フォルダの読み込みとプラグインの部品が送る | `app/update.ts` → `model/images.ts` の `acceptImages`（オブジェクトでない → 何もしない。キーが画像のパスでない・値が Blob でない項目は捨ててコンソールへ） |
 
 **残している穴**: 部品が土台の Msg（`Undo` など）を dispatch したとき、type の形は確かめるが、中身（`DeckLoaded` の deck など）は確かめない。
 外部プラグインは「信頼できるものだけを入れる」前提なのでここまでにしている。
