@@ -21,8 +21,9 @@ export async function imagePathOf(blob: Blob): Promise<string | null> {
 
 /**
  * Blob ごとに1回だけ作った Blob URL を覚えておく（描画のたびに作ると、同じ画像で URL が増え続けるため）。
- * Blob URL は解放（revokeObjectURL）しない。Model.images も増えるだけで消さないので、
- * 表示中の画像の URL を誤って無効にしないことを優先している（ページを閉じれば消える）
+ * Blob URL は解放（revokeObjectURL）しない。表示中の画像の URL を誤って無効にしないことを優先している。
+ * そのため、別のファイルを開いて Model.images が空になっても、前の画像の Blob は Blob URL から参照され続け、
+ * ページを閉じるまでメモリに残る（承知の上。画像の数が多くなる使い方は想定していない）
  */
 const blobUrls = new WeakMap<Blob, string>();
 
