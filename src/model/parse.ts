@@ -69,13 +69,19 @@ function parseElement(el: Element): SlideElement {
   };
 }
 
+/** 発表者ノートの要素か（スライド上の要素としては扱わない） */
+const isNotes = (el: Element) => el.tagName === 'ASIDE' && el.hasAttribute('data-notes');
+
 function parseSlide(section: Element): Slide {
+  const children = Array.from(section.children);
   return {
     id: newId('s'),
     layout: section.getAttribute('data-layout') ?? 'blank',
-    // section の直下の要素はすべてスライド上の要素として扱う。
+    // section の直下の要素は、ノート以外すべてスライド上の要素として扱う。
     // data-el が付いていなくても受け入れる（AI が付け忘れても壊れないように）
-    elements: Array.from(section.children).map(parseElement),
+    elements: children.filter((el) => !isNotes(el)).map(parseElement),
+    // ノートはプレーンテキストとして読む（タグが書かれていても文字だけを取り出す）
+    notes: children.find(isNotes)?.textContent?.trim() ?? '',
   };
 }
 

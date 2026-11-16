@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import sample from '../samples/sample-deck.html?raw';
+import { setNotes } from './commands';
 import { parseDeck } from './parse';
 import { resolveRect, renderSlideHtml } from './render';
 import { serializeDeck } from './serialize';
@@ -49,5 +50,37 @@ describe('renderSlideHtml', () => {
     const deck = parseDeck(sample);
     const html = renderSlideHtml(deck, deck.slides[2]);
     expect(html).toContain('left:120px; top:260px; width:1000px; height:740px');
+  });
+});
+
+describe('発表者ノート', () => {
+  const deck = parseDeck(sample);
+
+  it('<aside data-notes> をノートとして読み、スライドの要素には含めない', () => {
+    expect(deck.slides[1].notes).toBe('発表者ノートは <aside data-notes> に書く。スライドには表示されない。');
+    expect(deck.slides[1].elements.map((e) => e.tag)).toEqual(['div', 'div']);
+    expect(renderSlideHtml(deck, deck.slides[1])).not.toContain('発表者ノート');
+  });
+
+  it('記号を含むノートも書き出し→読み直しで変わらない', () => {
+    const notes = 'a < b && c > d\n2行目';
+    const edited = setNotes(deck, deck.slides[0].id, notes);
+    expect(parseDeck(serializeDeck(edited)).slides[0].notes).toBe(notes);
+    expect(serializeDeck(edited)).toContain('<aside data-notes>a &lt; b &amp;&amp; c &gt; d');
+  });
+
+  it('ノートが空のスライドには aside を書かない', () => {
+    expect(serializeDeck(deck).match(/<aside data-notes>/g)).toHaveLength(1);
+  });
+});
+
+describe('SVG の図形', () => {
+  it('svg 要素も位置を持つ要素として読み書きできる', () => {
+    const deck = parseDeck(sample);
+    const arrow = deck.slides[3].elements[2];
+    expect(arrow.tag).toBe('svg');
+    expect(arrow.attrs['data-shape']).toBe('arrow');
+    expect(arrow.rect).toEqual({ x: 760, y: 700, w: 400, h: 80 });
+    expect(arrow.html).toContain('<path');
   });
 });

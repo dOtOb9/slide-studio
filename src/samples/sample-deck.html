@@ -31,6 +31,7 @@ section[data-layout="cover"] [data-ph="subtitle"] { font-size: 44px; opacity: .8
 <section data-layout="title-body">
   <div data-ph="title">このファイルの仕組み</div>
   <div data-ph="body"><ul><li>&lt;template data-layout&gt; がレイアウト（マスター）</li><li>data-ph はプレースホルダー。位置はレイアウトから継承する</li><li>data-el は自由配置の要素。位置を自分で持つ</li></ul></div>
+  <aside data-notes>発表者ノートは &lt;aside data-notes&gt; に書く。スライドには表示されない。</aside>
 </section>
 <section data-layout="title-body">
   <div data-ph="title">位置の上書きと自由配置</div>
@@ -41,6 +42,7 @@ section[data-layout="cover"] [data-ph="subtitle"] { font-size: 44px; opacity: .8
 <section data-layout="blank">
   <div data-el style="left:0px; top:0px; width:1920px; height:1080px; background:linear-gradient(135deg, #1e3a5f, #2a9d8f)"></div>
   <div data-el style="left:200px; top:440px; width:1520px; height:200px; color:#fff; font-size:96px; font-weight:700; text-align:center">blank レイアウト：全部自由配置</div>
+  <svg data-el data-shape="arrow" viewBox="0 0 100 20" preserveAspectRatio="none" style="left:760px; top:700px; width:400px; height:80px"><path d="M0 10 H88 M80 2 L96 10 L80 18" fill="none" stroke="#fff" stroke-width="3" vector-effect="non-scaling-stroke"/></svg>
 </section>
 </body>
 </html>

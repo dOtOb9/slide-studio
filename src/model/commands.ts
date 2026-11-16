@@ -5,7 +5,7 @@
 //   - 何も変わらなかったときは、元の Deck をそのまま返す。
 //     「参照が同じ = 変更なし」と判断できるので、空の履歴を積まずに済む
 
-import type { Deck, Rect, Slide } from './types';
+import type { Deck, Rect, Slide, SlideElement } from './types';
 
 export interface ElementPatch {
   rect?: Partial<Rect>; // 変更する位置・サイズだけを渡す（残りはそのまま）
@@ -68,6 +68,7 @@ export function addSlide(deck: Deck, index: number, layoutName: string, newId: (
   const slide: Slide = {
     id: newId(),
     layout: layoutName,
+    notes: '',
     elements: (layout?.placeholders ?? []).map((ph) => ({
       id: newId(),
       tag: 'div',
@@ -110,6 +111,16 @@ export function moveSlide(deck: Deck, from: number, to: number): Deck {
   const [moved] = slides.splice(from, 1);
   slides.splice(to, 0, moved);
   return { ...deck, slides };
+}
+
+/** スライドの発表者ノートを書き換える。変わらなければ元の Deck を返す */
+export function setNotes(deck: Deck, slideId: string, notes: string): Deck {
+  return mapSlide(deck, slideId, (slide) => (slide.notes === notes ? slide : { ...slide, notes }));
+}
+
+/** スライドの最前面に要素を追加する（図形や画像の挿入に使う） */
+export function insertElement(deck: Deck, slideId: string, element: SlideElement): Deck {
+  return mapSlide(deck, slideId, (slide) => ({ ...slide, elements: [...slide.elements, element] }));
 }
 
 /** 中身が空か（テキストも画像なども無い）。空のプレースホルダーには入力を促す表示を出す */

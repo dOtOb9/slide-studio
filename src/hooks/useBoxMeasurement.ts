@@ -16,6 +16,24 @@ function sameBoxes(a: Box[], b: Box[]): boolean {
 }
 
 /**
+ * 要素1つの位置とサイズ（スライド px）。
+ * HTML の要素は offsetLeft などで測る（transform の影響を受けない）。
+ * SVG の要素には offsetLeft が無いので、画面上の位置を測って縮小率で割り戻す
+ */
+function measureNode(n: Element, section: HTMLElement) {
+  if (n instanceof HTMLElement) return { x: n.offsetLeft, y: n.offsetTop, w: n.offsetWidth, h: n.offsetHeight };
+  const s = section.getBoundingClientRect();
+  const r = n.getBoundingClientRect();
+  const k = s.width / section.offsetWidth; // 表示の縮小率
+  return {
+    x: Math.round((r.left - s.left) / k),
+    y: Math.round((r.top - s.top) / k),
+    w: Math.round(r.width / k),
+    h: Math.round(r.height / k),
+  };
+}
+
+/**
  * 戻り値:
  *   rootRef  … 描画先の ShadowRoot（テキスト編集で要素を探すのに使う）
  *   onRender … SlideView に渡す。描画のたびに呼ばれ、位置を測る
@@ -28,15 +46,10 @@ export function useBoxMeasurement() {
   const onRender = useCallback(
     (root: ShadowRoot) => {
       rootRef.current = root;
-      const nodes = Array.from(root.querySelectorAll<HTMLElement>('section > [data-id]'));
+      const section = root.querySelector<HTMLElement>('section');
+      const nodes = Array.from(root.querySelectorAll('section > [data-id]'));
       const read = () => {
-        const boxes = nodes.map((n) => ({
-          id: n.dataset.id!,
-          x: n.offsetLeft,
-          y: n.offsetTop,
-          w: n.offsetWidth,
-          h: n.offsetHeight,
-        }));
+        const boxes = nodes.map((n) => ({ id: n.getAttribute('data-id')!, ...measureNode(n, section!) }));
         if (!sameBoxes(getModel().boxes, boxes)) dispatch({ type: 'BoxesMeasured', boxes });
       };
       read();

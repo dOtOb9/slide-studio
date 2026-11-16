@@ -11,6 +11,11 @@ export function escapeAttr(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 }
 
+/** 要素の中に書く文字の、HTML として特別な意味を持つ記号を無害にする */
+export function escapeText(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 /** rect と残りのスタイルから style 属性の中身を作る */
 export function styleText(rect: Partial<Rect>, rest: string): string {
   const parts: string[] = [];
@@ -70,6 +75,7 @@ export function serializeDeck(deck: Deck): string {
   for (const slide of deck.slides) {
     out.push(`<section data-layout="${escapeAttr(slide.layout)}">`);
     for (const el of slide.elements) out.push('  ' + serializeElement(el));
+    if (slide.notes) out.push(`  <aside data-notes>${escapeText(slide.notes)}</aside>`);
     out.push('</section>');
   }
 

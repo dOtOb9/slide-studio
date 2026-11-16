@@ -38,6 +38,7 @@ export interface Slide {
   id: string;
   layout: string;
   elements: SlideElement[];
+  notes: string; // 発表者ノート（プレーンテキスト）。<aside data-notes> に保存する
 }
 
 /** デッキ全体 */

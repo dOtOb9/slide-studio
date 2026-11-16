@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import sample from '../samples/sample-deck.html?raw';
-import { addSlide, deleteElement, deleteSlide, duplicateSlide, isEmptyHtml, moveSlide, updateElement } from './commands';
+import {
+  addSlide,
+  deleteElement,
+  deleteSlide,
+  duplicateSlide,
+  insertElement,
+  isEmptyHtml,
+  moveSlide,
+  setNotes,
+  updateElement,
+} from './commands';
 import { parseDeck } from './parse';
 import { resolveRect } from './render';
 import { serializeDeck } from './serialize';
@@ -111,5 +121,19 @@ describe('スライドの操作', () => {
     expect(isEmptyHtml(' <br> ')).toBe(true);
     expect(isEmptyHtml('&nbsp;')).toBe(true);
     expect(isEmptyHtml('a')).toBe(false);
+  });
+});
+
+describe('insertElement / setNotes', () => {
+  it('insertElement は最前面（末尾）に追加する', () => {
+    const el = { id: 'x', tag: 'div', rect: { x: 0, y: 0, w: 10, h: 10 }, style: '', attrs: {}, html: '' };
+    const next = insertElement(deck, slide.id, el);
+    const elements = next.slides[1].elements;
+    expect(elements[elements.length - 1]).toBe(el);
+  });
+
+  it('setNotes は同じ内容なら元の Deck を返す', () => {
+    expect(setNotes(deck, slide.id, slide.notes)).toBe(deck);
+    expect(setNotes(deck, slide.id, 'x').slides[1].notes).toBe('x');
   });
 });
