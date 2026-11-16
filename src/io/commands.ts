@@ -7,7 +7,7 @@ import type { Msg } from '../app/msg';
 import { getModel, useStore } from '../app/store';
 import { imagesToWrite, missingImagePaths } from '../model/images';
 import { parseDeck } from '../model/parse';
-import { canWriteImageFiles, openFile, readImageFiles, requestFolder, saveFile } from './file';
+import { openFile, readImageFiles, requestFolder, saveFile } from './file';
 import { deckHtml } from './images';
 
 const dispatch = (msg: Msg) => useStore.getState().dispatch(msg);
@@ -56,11 +56,14 @@ export async function saveDeck(saveAs = false) {
   const { deck, fileName, images } = getModel();
   try {
     // 中身を持っている画像を images/ に書く。持っていない画像（フォルダを許可していない等）は参照のまま。
-    // フォルダに書けないブラウザでは、画像を data URI で埋め込んだ1ファイルにする
-    const html = await deckHtml(deck, images, canWriteImageFiles);
-    const toWrite = canWriteImageFiles ? imagesToWrite(deck, images) : {};
-    const saved = await saveFile(html, fileName, saveAs, toWrite);
-    if (saved) dispatch({ type: 'DeckSaved', deck, fileName: saved.name, canReadFolder: saved.canReadFolder });
+    // images/ に書けないとき（フォルダを選べないブラウザ・フォルダの許可をもらえなかった）は、画像を埋め込んだ1ファイルにする
+    const saved = await saveFile(fileName, saveAs, imagesToWrite(deck, images), (inFolder) =>
+      deckHtml(deck, images, inFolder),
+    );
+    if (!saved) return;
+    dispatch({ type: 'DeckSaved', deck, fileName: saved.name, canReadFolder: saved.canReadFolder });
+    // オーナーの決定（2026-11-17）: フォルダに書けなかったときは埋め込んで保存し、そのことを知らせる
+    if (saved.embedded) window.alert('フォルダに書けないので、画像を deck.html の中に入れて保存しました');
   } catch (e) {
     report('保存', e);
   }

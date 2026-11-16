@@ -43,7 +43,7 @@ const PICKER_TYPES = [{ description: 'スライド (HTML)', accept: { 'text/html
  * images/ に画像をファイルとして書けるか（保存先とフォルダの両方を選べるブラウザか）。
  * 書けなければ、保存するときに画像を data URI で埋め込む
  */
-export const canWriteImageFiles = Boolean(fsWindow.showSaveFilePicker && fsWindow.showDirectoryPicker);
+const canWriteImageFiles = Boolean(fsWindow.showSaveFilePicker && fsWindow.showDirectoryPicker);
 
 /**
  * 今開いているファイルのハンドル（上書き保存の宛先）。
@@ -201,18 +201,46 @@ async function writeImageFiles(dir: DirectoryHandle, images: Record<string, Blob
 }
 
 /**
- * 保存する。保存したファイル名と、隣のフォルダを読めるかを返す（キャンセルされたら null）。
+ * 保存のためにフォルダを得て、images/ に画像を書く。書けたら true。
+ * 書けないとき（フォルダの選択をキャンセルした・選べないフォルダ（デスクトップ直下など）・別のフォルダを選んだ・
+ * 書き込みに失敗した）は false を返し、理由はコンソールに出す（呼び出し側が画像を埋め込んで保存する）
+ */
+async function writeImagesForSave(
+  target: FileHandle,
+  dir: DirectoryHandle | null,
+  images: Record<string, Blob>,
+): Promise<{ written: boolean; dir: DirectoryHandle | null }> {
+  try {
+    dir ??= await askFolder(target);
+    if (!dir) {
+      console.warn('フォルダが選ばれなかったので、画像を deck.html に埋め込みます');
+      return { written: false, dir: null };
+    }
+    await writeImageFiles(dir, images);
+    return { written: true, dir };
+  } catch (e) {
+    console.warn('images/ に画像を書けなかったので、deck.html に埋め込みます', e);
+    return { written: false, dir };
+  }
+}
+
+/**
+ * 保存する。保存したファイル名・隣のフォルダを読めるか・画像を埋め込みに切り替えたかを返す（キャンセルされたら null）。
  *   saveAs = false … 開いたファイルがあれば上書き。無ければ「名前を付けて保存」になる
  *   saveAs = true  … 常に保存先を選ばせる
- *   images … images/ に書く画像（canWriteImageFiles のときだけ渡す）。
- *            1つでもあればフォルダが要るので、まだ許可されていなければフォルダを選ばせる。画像を先に書き、最後に HTML を書く
+ *   images … 中身を書き出す画像（model/images.ts の imagesToWrite）。
+ *            1つでもあれば images/ に書く。フォルダの許可がまだなら、ここでフォルダを選ばせる。
+ *            フォルダに書けなければ、画像を data URI で deck.html に埋め込む（オーナーの決定 2026-11-17）
+ *   html   … 保存する HTML を作る関数。inFolder = false なら画像を埋め込んだ HTML を返す（io/images.ts の deckHtml）
+ * 保存先を選んだあとは、画像がどうなっても HTML は必ず書く（名前を付けて保存で、空のファイルを残さないように）。
+ * 画像を先に書き、最後に HTML を書く
  */
 export async function saveFile(
-  html: string,
   name: string,
   saveAs: boolean,
-  images: Record<string, Blob> = {},
-): Promise<{ name: string; canReadFolder: boolean } | null> {
+  images: Record<string, Blob>,
+  html: (inFolder: boolean) => Promise<string>,
+): Promise<{ name: string; canReadFolder: boolean; embedded: boolean } | null> {
   if (fsWindow.showSaveFilePicker) {
     try {
       const target =
@@ -221,29 +249,36 @@ export async function saveFile(
           : currentHandle;
       // 許可済みのフォルダは、保存先がその直下にあるときだけ使う（名前を付けて別のフォルダに保存したら捨てる）
       let dir = currentDir && (await isDirectlyIn(currentDir, target)) ? currentDir : null;
+      let inFolder = true; // 書き出す画像が無ければ、HTML はパスのまま
+      let embedded = false; // フォルダに書けず、埋め込みに切り替えたか（知らせるため）
       if (Object.keys(images).length > 0) {
-        dir ??= await askFolder(target);
-        // フォルダを選ばなかったら保存しない（画像の無い deck.html にならないように）
-        if (!dir) return null;
-        await writeImageFiles(dir, images);
+        if (canWriteImageFiles) {
+          const result = await writeImagesForSave(target, dir, images);
+          dir = result.dir;
+          inFolder = result.written;
+          embedded = !result.written;
+        } else {
+          inFolder = false; // フォルダを選べないブラウザ: いつも埋め込む（知らせない）
+        }
       }
+      const text = await html(inFolder);
       const writable = await target.createWritable();
-      await writable.write(html);
+      await writable.write(text);
       await writable.close();
       currentHandle = target;
       currentDir = dir;
-      return { name: target.name, canReadFolder: Boolean(fsWindow.showDirectoryPicker) };
+      return { name: target.name, canReadFolder: Boolean(fsWindow.showDirectoryPicker), embedded };
     } catch (e) {
       if (isAbort(e)) return null;
       throw e;
     }
   }
-  // File System Access API が無いブラウザ: ダウンロードとして保存する
-  const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+  // File System Access API が無いブラウザ: 画像を埋め込んだ1ファイルを、ダウンロードとして保存する
+  const url = URL.createObjectURL(new Blob([await html(false)], { type: 'text/html' }));
   const a = document.createElement('a');
   a.href = url;
   a.download = name;
   a.click();
   URL.revokeObjectURL(url);
-  return { name, canReadFolder: false };
+  return { name, canReadFolder: false, embedded: false };
 }
