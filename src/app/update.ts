@@ -217,6 +217,8 @@ function redo(model: Model): Model {
  * 履歴の Deck に切り替える。変わったスライドへ表示を移す（別のスライドでの変更を戻しても、何が起きたか見えるように）。
  * 変更していないスライドは同じオブジェクトのまま共有されている（commands.ts がそう作る）ので、
  * 「オブジェクトが別物になったスライド」を探せば、変わったスライドがわかる。
+ * ただし並べ替えを戻した場合は、動かしたスライドではなく「並びが最初に変わった位置」を表示する
+ * （例: 4枚目を先頭へ動かして戻すと、先頭を表示する）。どこが変わったかは見えるので、これで良しとしている。
  */
 function restore(model: Model, deck: Deck, history: Model['history']): Model {
   const changed = deck.slides.findIndex((s, i) => s !== model.deck.slides[i]);

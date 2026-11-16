@@ -68,8 +68,10 @@ export interface Model {
 export function defaultNewLayout(model: Model): string {
   const { layouts, slides } = model.deck;
   const current = slides[model.current]?.layout;
-  if (layouts.length === 0) return current ?? 'blank';
-  if (!current || (current === layouts[0].name && layouts.length > 1)) return layouts[Math.min(1, layouts.length - 1)].name;
+  if (layouts.length === 0) return current ?? 'blank'; // レイアウトの定義が無いファイル
+  const second = layouts[1] ?? layouts[0]; // レイアウトが1つしか無ければそれを使う
+  if (!current) return second.name; // スライドが0枚
+  if (current === layouts[0].name) return second.name; // 表紙の次
   return current;
 }
 

@@ -308,6 +308,25 @@ describe('スライドの操作', () => {
     const m0 = setup();
     const editing = update(m0, { type: 'EditRequested', id: el(m0, 0).id });
     expect(update(editing, { type: 'SlideDeleted', index: 0 })).toBe(editing);
+    const dragging = update(m0, { type: 'DragStarted', id: el(m0, 2).id, handle: null, pointer: p(0, 0) });
+    expect(update(dragging, { type: 'SlideAdded', after: 0, layout: 'blank' })).toBe(dragging);
+    expect(update(dragging, { type: 'SlideMoved', from: 0, to: 1 })).toBe(dragging);
+  });
+
+  it('並べ替え・複製は1回の Undo で元の Deck に戻る', () => {
+    const m0 = setup();
+    expect(run(m0, { type: 'SlideMoved', from: 3, to: 0 }, { type: 'Undo' }).deck).toBe(m0.deck);
+    expect(run(m0, { type: 'SlideDuplicated', index: 1 }, { type: 'Undo' }).deck).toBe(m0.deck);
+  });
+
+  it('DeckLoaded で履歴・連番・保存状態が初期化される', () => {
+    const m0 = setup();
+    const busy = run(m0, { type: 'SlideAdded', after: 0, layout: 'blank' }, { type: 'SlideAdded', after: 0, layout: 'blank' });
+    const loaded = update(busy, { type: 'DeckLoaded', deck: m0.deck, fileName: 'b.html' });
+    expect(loaded.history).toEqual({ past: [], future: [] });
+    expect(loaded.nextId).toBe(1);
+    expect(loaded.savedDeck).toBe(m0.deck);
+    expect(isDirty(loaded)).toBe(false);
   });
 });
 
