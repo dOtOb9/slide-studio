@@ -171,6 +171,8 @@ store とのつなぎは `reactView` と `PluginSlot`（ctx）が受け持つ。
 - 色は `index.css` の `:root` に CSS 変数としてまとめ、部品ごとに色を決め打ちしない（プラグインの部品も同じ変数を使える）。
 - プラグインの部品も同じ見た目にする。共通のクラス名（README「プラグイン」の「部品の見た目」）を使う。
 - アイコンは `lucide-react`（同梱の部品）。アイコンだけのボタンは `components/IconButton.tsx` を使う。
+- `src/ui-policy.test.ts` が、src の CSS と `components/` を読んで上の方針（線・色の変数・`.button` / `.icon-button` の背景の上書き・IconButton）を確かめている。
+  線を例外として使うときは、その宣言の行に `/* 線の例外: 理由 */` と書く。共通クラスの背景を場所ごとに変えるときは `:where(…) .button` のように詳細度を上げない形で書く。
 
 ## ブラウザでの動作確認
 
