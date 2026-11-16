@@ -16,8 +16,20 @@ import { API_VERSION, isCompatible, type Plugin, type PluginApi } from '../plugi
 /** 同梱（アプリと一緒に配る）か、外部（後から読み込んだ）か */
 export type PluginSource = 'builtin' | 'external';
 
+/**
+ * 外から受け取った Plugin（Step 7a の再発防止）。関数の欄の戻り値を unknown に変えた型。
+ * 登録簿にはこの型で入れるので、host がプラグインの関数をどう呼んでも戻り値は unknown になり、
+ * 確かめる関数（looksLikeModel など）を通さないと使えない（確かめ忘れは型エラー）。
+ * 例: Plugin に onPaste?(…): M | null を足すと、ここでは onPaste?(…): unknown になる。
+ */
+export type ReceivedPlugin = {
+  [K in keyof Plugin]: Plugin[K] extends ((...args: infer A) => unknown) | undefined
+    ? ((...args: A) => unknown) | undefined
+    : Plugin[K];
+};
+
 export interface PluginEntry {
-  plugin: Plugin;
+  plugin: ReceivedPlugin;
   source: PluginSource;
   enabled: boolean;
 }
@@ -37,7 +49,7 @@ function setEntries(next: readonly PluginEntry[]) {
  * プラグインを登録する。形が正しくない・版が合わない・名前が重なるときは例外を投げる
  * （外部プラグインは型の確認を通っていないので、実行時に確かめる）
  */
-export function registerPlugin(value: unknown, source: PluginSource): Plugin {
+export function registerPlugin(value: unknown, source: PluginSource): ReceivedPlugin {
   const plugin = validatePlugin(value);
   if (entries.some((e) => e.plugin.name === plugin.name)) {
     throw new Error(`同じ名前のプラグインが既にあります: ${plugin.name}`);
@@ -81,7 +93,7 @@ export function pluginFromModule(mod: unknown, api: PluginApi): unknown {
 
 const NAME_PATTERN = /^[a-z][a-z0-9-]*$/;
 
-function validatePlugin(value: unknown): Plugin {
+function validatePlugin(value: unknown): ReceivedPlugin {
   if (!value || typeof value !== 'object') throw new Error('プラグインがオブジェクトではありません');
   const p = value as Record<string, unknown>;
   if (typeof p.name !== 'string' || !NAME_PATTERN.test(p.name)) {
@@ -105,7 +117,7 @@ function validatePlugin(value: unknown): Plugin {
   if (toolbar !== undefined && typeof toolbar?.mount !== 'function') {
     throw new Error(`プラグイン ${p.name} の toolbar に mount がありません`);
   }
-  return value as Plugin;
+  return value as ReceivedPlugin;
 }
 
 // --- update から呼ばれる部分 ---------------------------------------------------------
@@ -174,6 +186,25 @@ export function checkMsgFromPlugin(value: unknown): value is Msg {
   return false;
 }
 
+/**
+ * プラグインの部品が ctx.subscribe に渡した関数を、安全に呼べる関数に包む（store の pluginContext から呼ぶ）。
+ * 関数でなければ null（購読しない）。呼んだときの例外は受け止める。受け止めないと、Model を変えた dispatch の
+ * 呼び出し元まで例外が上がり、後から登録された購読者（画面）に変更が届かなくなる。
+ */
+export function listenerFromPlugin(value: unknown): (() => void) | null {
+  if (typeof value !== 'function') {
+    console.error('プラグインの部品が ctx.subscribe に関数ではないものを渡しました', value);
+    return null;
+  }
+  return () => {
+    try {
+      value();
+    } catch (e) {
+      console.error('プラグインの部品（ctx.subscribe に渡した関数）でエラーが起きました', e);
+    }
+  };
+}
+
 /** Msg の形か（type が文字列のオブジェクト） */
 function looksLikeMsg(value: unknown): value is Msg {
   return typeof value === 'object' && value !== null && typeof (value as { type?: unknown }).type === 'string';
@@ -182,11 +213,11 @@ function looksLikeMsg(value: unknown): value is Msg {
 /**
  * プラグインの関数を呼ぶ。例外が出たらコンソールに出して undefined を返す。
  *
- * 戻り値はわざと unknown にしている（Step 6 の再発防止）。Plugin の型は「update は Model を返す」と
- * 書いてあるが、外部プラグインは型の確認を通っていないので、何が返るかわからない。unknown にしておけば、
- * 確かめる関数（looksLikeModel など）を通さないと使えず、確かめ忘れは型エラーになる。
+ * 戻り値は unknown（Step 6 の再発防止）。Plugin の型は「update は Model を返す」と書いてあるが、
+ * 外部プラグインは型の確認を通っていないので、何が返るかわからない。登録簿の ReceivedPlugin も関数の戻り値を
+ * unknown にしているので、ここを通しても通さなくても、確かめる関数（looksLikeModel など）無しでは使えない。
  */
-function callPlugin(plugin: Plugin, fn: () => unknown): unknown {
+function callPlugin(plugin: ReceivedPlugin, fn: () => unknown): unknown {
   try {
     return fn();
   } catch (e) {

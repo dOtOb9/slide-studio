@@ -9,7 +9,7 @@
 import { create } from 'zustand';
 import { parseDeck } from '../model/parse';
 import type { PluginContext } from '../plugin-api';
-import { checkMsgFromPlugin } from '../plugins/host';
+import { checkMsgFromPlugin, listenerFromPlugin } from '../plugins/host';
 import sample from '../samples/sample-deck.html?raw';
 import { initModel, type Model } from './model';
 import type { Msg } from './msg';
@@ -43,6 +43,11 @@ export const pluginContext: PluginContext = {
   dispatch: (msg: unknown) => {
     if (checkMsgFromPlugin(msg)) useStore.getState().dispatch(msg);
   },
-  // zustand は (新しい状態, 前の状態) を渡してくるが、部品には「変わった」ことだけを伝える
-  subscribe: (listener) => useStore.subscribe(() => listener()),
+  // zustand は (新しい状態, 前の状態) を渡してくるが、部品には「変わった」ことだけを伝える。
+  // 部品が渡す関数も外から来る値なので、host で確かめて例外を受け止める形に包んでから登録する
+  subscribe: (listener: unknown) => {
+    const safe = listenerFromPlugin(listener);
+    if (!safe) return () => {};
+    return useStore.subscribe(() => safe());
+  },
 };

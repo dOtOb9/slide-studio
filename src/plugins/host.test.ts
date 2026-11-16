@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { getPluginState, setPluginState } from '../app/helpers';
 import { initModel, type Model } from '../app/model';
 import { update } from '../app/update';
@@ -14,6 +14,7 @@ import {
   setPluginEnabled,
   subscribePlugins,
   unregisterPlugin,
+  type ReceivedPlugin,
 } from './host';
 
 const setup = () => initModel(parseDeck(sample), 't.html');
@@ -89,6 +90,12 @@ describe('registerPlugin', () => {
     onKey: { value: 'x', message: 'onKey が関数ではありません' },
     toolbar: { value: { mount: 1 }, message: 'mount がありません' },
   };
+  it('登録簿の Plugin（ReceivedPlugin）は、関数の欄の戻り値が unknown（確かめずに使うと型エラー。Step 7a audit-1 #2）', () => {
+    expectTypeOf<ReturnType<NonNullable<ReceivedPlugin['update']>>>().toBeUnknown();
+    expectTypeOf<ReturnType<NonNullable<ReceivedPlugin['onKey']>>>().toBeUnknown();
+    expectTypeOf<ReceivedPlugin['name']>().toEqualTypeOf<string>(); // 関数でない欄はそのまま
+  });
+
   it.each(Object.entries(badFields))('欄 %s に不正な値があれば断る', (key, { value, message }) => {
     expect(() => registerPlugin({ name: 'a', apiVersion: '1.0', [key]: value }, 'external')).toThrow(message);
     expect(listPlugins()).toEqual([]);
