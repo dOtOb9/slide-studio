@@ -10,10 +10,12 @@
   --bg-selected: #dbe7fb;  /* 選んでいるもの */
   --fg: #1f2933;           /* 文字 */
   --fg-muted: #616e7c;     /* 控えめな文字・アイコン */
+  --fg-faint: #9aa5b1;     /* さらに控えめ（空のプレースホルダーの案内） */
   --accent: #3b82f6;       /* 選択・挿入位置などの強調 */
   --warning: #8a5a00;
   --dirty: #e67700;
   --shadow-float: 0 6px 24px rgb(0 0 0 / .14); /* 浮いている面（パネル）の影 */
+  --shadow-paper: 0 2px 10px rgb(0 0 0 / .15); /* スライド（紙）の影 */
 }
 
 html, body, #root { height: 100%; margin: 0; }
@@ -80,10 +82,12 @@ body {
   color: var(--fg-muted);
 }
 .icon-button svg { width: 18px; height: 18px; flex: none; }
-/* まとまりの中では、くぼみの色の上に乗るので、ボタン自身は透明にする */
-.group .button, .group .icon-button { background: transparent; }
+/* 色の付いた面（まとまり・パネル）の中では、ボタン自身は透明にする。
+   :where() で詳細度を 0 にして、下の hover・無効・押下中のルールが必ず勝つようにする
+   （場所ごとに「透明にする」ルールを書き足すと、詳細度や順番で hover が消えやすいため。Step 7b audit-1 #1） */
+:where(.group, .plugin-panel) .button, :where(.group, .plugin-panel) .icon-button { background: transparent; }
 .button:hover, .icon-button:hover { background: var(--bg-hover); color: var(--fg); }
-.button:disabled, .icon-button:disabled { opacity: .35; cursor: default; background: transparent; }
+.button:disabled, .icon-button:disabled { opacity: .35; cursor: default; background: transparent; color: var(--fg-muted); }
 .icon-button[aria-pressed="true"], .icon-button[aria-expanded="true"] { background: var(--bg-selected); color: var(--fg); }
 .button:focus-visible, .icon-button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
@@ -99,7 +103,6 @@ body {
   font: inherit;
 }
 .select-button:has(select:focus-visible) { outline: 2px solid var(--accent); outline-offset: -2px; }
-.select-button:has(select:disabled) { opacity: .35; }
 
 /* 狭いときはファイル名のほうを縮めて「…」で省く */
 .filename { color: var(--fg-muted); margin-left: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -121,12 +124,11 @@ body {
   box-shadow: var(--shadow-float);
 }
 .plugin-panel-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-.plugin-panel-head .icon-button { margin-left: auto; background: transparent; }
+.plugin-panel-head .icon-button { margin-left: auto; }
 .plugin-muted { color: var(--fg-muted); font-size: 12px; }
 .plugin-list { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .plugin-list li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; }
 .plugin-list li:hover { background: var(--bg-sunken); }
-.plugin-list li .icon-button { background: transparent; }
 .plugin-list label { display: flex; align-items: flex-start; gap: 8px; flex: 1; cursor: pointer; }
 .plugin-description { display: block; color: var(--fg-muted); font-size: 12px; }
 .plugin-load { display: flex; gap: 4px; }
@@ -169,7 +171,7 @@ body {
 .thumb:hover { background: var(--bg-hover); }
 .thumb.active { background: var(--bg-selected); }
 .thumb .num { width: 14px; color: var(--fg-muted); text-align: right; font-size: 12px; }
-.thumb > div { box-shadow: 0 1px 3px rgb(0 0 0 / .18); } /* スライドの縮小表示は影で紙のように浮かせる */
+.thumb > div { box-shadow: var(--shadow-paper); } /* スライドの縮小表示は影で紙のように浮かせる */
 /* ドラッグで並べ替えるときの挿入位置（線でなく、位置を示す印として色の帯を出す） */
 .thumb.insert-before { box-shadow: 0 -3px 0 0 var(--accent); }
 .thumb.insert-after { box-shadow: 0 3px 0 0 var(--accent); }
@@ -201,7 +203,7 @@ body {
   overflow: hidden;
 }
 
-.canvas { box-shadow: 0 2px 12px rgba(0, 0, 0, .15); }
+.canvas { box-shadow: var(--shadow-paper); }
 
 /* ---- 編集キャンバス ---- */
 .editor-canvas { position: relative; }
@@ -209,30 +211,30 @@ body {
 /* overlay 自体はクリックを素通しし、プロキシとハンドルだけがクリックを受ける */
 .overlay { position: absolute; inset: 0; pointer-events: none; }
 .proxy { position: absolute; pointer-events: auto; cursor: move; }
-.proxy:hover { outline: 1px dashed #3b82f6; }
+.proxy:hover { outline: 1px dashed var(--accent); }
 
 /* 中身が空のプレースホルダー */
 .proxy.empty {
   display: flex;
   align-items: center;
   justify-content: center;
-  outline: 1px dashed #9aa5b1;
+  outline: 1px dashed var(--fg-faint);
   /* レイアウトに幅・高さが書かれていないと、空の要素は大きさ 0 になりダブルクリックできない。
      つかみ用の箱にだけ最小の大きさを持たせる（スライド本体・書き出しには影響しない） */
   min-width: 160px;
   min-height: 40px;
 }
-.ph-hint { color: #9aa5b1; font-size: 14px; pointer-events: none; user-select: none; }
+.ph-hint { color: var(--fg-faint); font-size: 14px; pointer-events: none; user-select: none; }
 
 /* 選択枠。枠自体はクリックを素通しし（下のプロキシで移動できるように）、ハンドルだけが受ける */
-.selection-frame { position: absolute; outline: 1.5px solid #3b82f6; pointer-events: none; }
+.selection-frame { position: absolute; outline: 1.5px solid var(--accent); pointer-events: none; }
 .handle {
   position: absolute;
   width: 10px;
   height: 10px;
   margin: -5px 0 0 -5px; /* ハンドルの中心を角・辺の中点に合わせる */
-  background: #fff;
-  border: 1.5px solid #3b82f6;
+  background: var(--bg-surface);
+  border: 1.5px solid var(--accent);
   border-radius: 2px;
   pointer-events: auto;
 }

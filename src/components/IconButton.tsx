@@ -9,6 +9,7 @@ export function IconButton({
   onClick,
   disabled,
   type = 'button',
+  expanded,
   children,
 }: {
   label: string;
@@ -16,10 +17,20 @@ export function IconButton({
   disabled?: boolean;
   /** フォームの送信ボタンにするときは 'submit' */
   type?: 'button' | 'submit';
+  /** パネルなどを開閉するボタンなら、開いているか（aria-expanded。開いている間は選択中の色になる） */
+  expanded?: boolean;
   children: ReactNode;
 }) {
   return (
-    <button type={type} className="icon-button" onClick={onClick} disabled={disabled} title={label} aria-label={label}>
+    <button
+      type={type}
+      className="icon-button"
+      onClick={onClick}
+      disabled={disabled}
+      title={label}
+      aria-label={label}
+      aria-expanded={expanded}
+    >
       {children}
     </button>
   );

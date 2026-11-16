@@ -20,15 +20,9 @@ export function PluginManager() {
 
   return (
     <div className="plugin-manager">
-      <button
-        className="icon-button"
-        onClick={() => setOpen(!open)}
-        aria-expanded={open}
-        title="プラグイン"
-        aria-label="プラグイン"
-      >
+      <IconButton label="プラグイン" expanded={open} onClick={() => setOpen(!open)}>
         <Puzzle />
-      </button>
+      </IconButton>
       {open && (
         <div className="plugin-panel" role="dialog" aria-label="プラグイン">
           <div className="plugin-panel-head">
