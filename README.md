@@ -23,7 +23,7 @@ npx vitest      # テスト
 | `<div data-el data-shape="rect">` / `data-shape="ellipse"` | 図形（四角・円）。色などは `style` に書く |
 | `<svg data-el data-shape="arrow" viewBox="..." preserveAspectRatio="none">` | 線・矢印などの SVG 図形。`vector-effect="non-scaling-stroke"` を付けると伸ばしても線の太さが変わらない |
 | `<img data-el src="data:image/png;base64,...">` | 画像。いまは HTML に埋め込む（1ファイルで持ち運べるため）。別ファイル参照（`src="images/a.png"`）も表示はできる |
-| `<aside data-notes>…</aside>` | 発表者ノート（section の中、プレーンテキスト）。スライドには描画されない |
+| `<aside data-notes>…</aside>` | 発表者ノート（section の中に1つ、プレーンテキスト）。スライドには描画されない。複数あれば改行でつないで読み、保存すると1つにまとまる |
 
 位置は `left/top/width/height` を px で書く。それ以外のスタイルは自由。
 `section` の直下の要素は、`data-el` が付いていなくても自由配置の要素として扱う（AI が付け忘れても壊れないように）。
@@ -45,8 +45,10 @@ src/
     commands.ts     編集操作（古い Deck → 新しい Deck）
     geometry.ts     リサイズなどの位置計算
   features/       ← 個々の機能（土台を触らずに足せる。AGENTS.md「機能の足し方」）
-    registry.ts     機能の登録簿
-    shapes/         図形・テキストボックスの挿入
+    types.ts        機能の形（Feature、部品が受け取る props）
+    registry.ts     機能の登録簿（純粋な部分。update から呼ばれる）
+    toolbar.ts      ツールバーに並べる部品の登録簿
+    shapes/         図形・テキストボックスの挿入（機能の手本）
   io/             ← ファイルの読み書き（Elm でいう Cmd）
     file.ts              File System Access API（無ければ input / ダウンロード）
     commands.ts          開く・保存の手順（終わったら Msg を送る）
