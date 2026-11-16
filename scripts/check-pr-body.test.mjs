@@ -163,6 +163,17 @@ vitest: 152 passed / tsc: エラーなし / eslint: エラーなし
     expect(checkPrBody(body)).toHaveLength(3);
   });
 
+  // audit-1 #5: コードブロックの中は数えない
+  it('本文の前の方にコードブロックで型を引用していても、本物の節で合格', () => {
+    const quote = '## 参考\n```markdown\n## 監査役のレビュー\nvitest: … / tsc: … / eslint: …\n### 判定\n承認 | 差し戻し\n```\n\n';
+    expect(checkPrBody(quote + GOOD)).toEqual([]);
+  });
+
+  it('節の中身をコードブロックに入れただけでは数えない', () => {
+    const body = '## 監査役のレビュー\n```\nvitest: 152 passed / tsc: エラーなし / eslint: エラーなし\n### 判定\n承認\n```\n';
+    expect(checkPrBody(body)).toHaveLength(4);
+  });
+
   it('PR #4 の本文のように「承認しました」とだけ書いたものは不合格', () => {
     const body = `## 概要
 npm audit の指摘を直す。

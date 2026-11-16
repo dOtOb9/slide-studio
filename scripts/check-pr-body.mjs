@@ -34,6 +34,21 @@ function isBlank(text) {
 }
 
 /**
+ * コードブロック（``` か ~~~ で囲んだ所）の行を空行に置き換える（audit-1 #5）。
+ * 本文に型を引用したブロックの見出しを本物の節と取り違えないため。節全体をブロックに入れても数えない。
+ */
+function withoutCodeBlocks(lines) {
+  let inBlock = false;
+  return lines.map((line) => {
+    if (/^\s{0,3}(```|~~~)/.test(line)) {
+      inBlock = !inBlock;
+      return '';
+    }
+    return inBlock ? '' : line;
+  });
+}
+
+/**
  * 自分で実行した結果ではないことを示す語（audit-1 #2）。
  * PR #4 の原因の2つ目は「作業役の報告・CI の緑を自分の検証の代わりにした」こと。
  * 「CI を参照」「未実行」「省略」のような書き方は、欄が埋まっていても結果ではないので不合格にする。
@@ -109,7 +124,7 @@ function verdictText(section) {
  * @returns {string[]}
  */
 export function checkPrBody(body) {
-  const lines = String(body ?? '').split(/\r?\n/);
+  const lines = withoutCodeBlocks(String(body ?? '').split(/\r?\n/));
   const section = findReviewSection(lines);
   if (section === null) {
     return ['「監査役のレビュー」を含む見出し（## か ###）がない'];
