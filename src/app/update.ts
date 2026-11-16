@@ -2,24 +2,38 @@
 // update(model, msg) は「今の Model と起きた出来事から、次の Model を返す」純粋な関数。
 // DOM にも React にも触らないので、Msg を順に流すだけでテストできる。
 
+import { featureKey, isFeatureMsg, updateFeature } from '../features/registry';
 import {
   addSlide,
   deleteElement,
   deleteSlide,
   duplicateSlide,
   moveSlide,
+  setNotes,
   updateElement,
   type ElementPatch,
 } from '../model/commands';
 import { resizeRect } from '../model/geometry';
 import type { Deck } from '../model/types';
+import {
+  clampSlide,
+  currentSlideId,
+  edit,
+  findElement,
+  isBusy,
+  pushHistory,
+  showSlide,
+  withNewIds,
+} from './helpers';
 import { defaultNewLayout, initModel, type Model } from './model';
-import type { Msg } from './msg';
+import type { KeyInput, Msg } from './msg';
 
-const HISTORY_LIMIT = 100; // 元に戻せる回数の上限
 const DRAG_THRESHOLD = 4; // これ未満の移動（スライド px）はクリックとみなす
 
 export function update(model: Model, msg: Msg): Model {
+  // 各機能（features/）の Msg は "機能名/出来事" という type を持つ。その機能の update に任せる
+  if (isFeatureMsg(msg)) return updateFeature(model, msg);
+
   switch (msg.type) {
     case 'DeckLoaded':
       return initModel(msg.deck, msg.fileName);
@@ -35,13 +49,13 @@ export function update(model: Model, msg: Msg): Model {
 
     case 'SlideAdded': {
       if (isBusy(model)) return model;
-      const { deck, nextId } = withNewIds(model, (newId) => addSlide(model.deck, msg.after, msg.layout, newId));
+      const { result: deck, nextId } = withNewIds(model, (newId) => addSlide(model.deck, msg.after, msg.layout, newId));
       return showSlide({ ...edit(model, deck), nextId }, msg.after + 1);
     }
 
     case 'SlideDuplicated': {
       if (isBusy(model)) return model;
-      const { deck, nextId } = withNewIds(model, (newId) => duplicateSlide(model.deck, msg.index, newId));
+      const { result: deck, nextId } = withNewIds(model, (newId) => duplicateSlide(model.deck, msg.index, newId));
       if (deck === model.deck) return model;
       return showSlide({ ...edit(model, deck), nextId }, msg.index + 1);
     }
@@ -60,6 +74,12 @@ export function update(model: Model, msg: Msg): Model {
       if (deck === model.deck) return model;
       // 並べ替えた後も、動かしたスライドを表示する
       return showSlide(edit(model, deck), msg.to);
+    }
+
+    case 'NotesCommitted': {
+      const slide = model.deck.slides[msg.index];
+      if (!slide) return model;
+      return edit(model, setNotes(model.deck, slide.id, msg.notes));
     }
 
     case 'ElementSelected':
@@ -126,8 +146,12 @@ export function update(model: Model, msg: Msg): Model {
       return edit(done, updateElement(model.deck, currentSlideId(model), msg.id, { html: msg.html }));
     }
 
-    case 'KeyPressed':
-      return onKey(model, msg);
+    case 'KeyPressed': {
+      // テキスト編集中のキーは文字入力に、ドラッグ中のキーは無視
+      if (model.editingId || model.gesture) return model;
+      // まず共通のキー操作。扱わなかったキーは各機能に回す
+      return coreKey(model, msg) ?? featureKey(model, msg, update) ?? model;
+    }
 
     case 'BoxesMeasured':
       return { ...model, boxes: msg.boxes };
@@ -146,10 +170,8 @@ export function update(model: Model, msg: Msg): Model {
 
 // --- キー操作 ---------------------------------------------------------------
 
-function onKey(model: Model, { key, shift, mod }: { key: string; shift: boolean; mod: boolean }): Model {
-  // テキスト編集中のキーは文字入力に、ドラッグ中のキーは無視
-  if (model.editingId || model.gesture) return model;
-
+/** 共通のキー操作。扱わないキーなら null を返す（各機能に回すため） */
+function coreKey(model: Model, { key, shift, mod }: KeyInput): Model | null {
   const k = key.toLowerCase();
   if (mod && k === 'z') return shift ? redo(model) : undo(model);
   if (mod && k === 'y') return redo(model);
@@ -178,28 +200,16 @@ function onKey(model: Model, { key, shift, mod }: { key: string; shift: boolean;
       const dy = key === 'ArrowUp' ? -step : key === 'ArrowDown' ? step : 0;
       return edit(model, updateElement(model.deck, currentSlideId(model), el.id, { rect: { x: box.x + dx, y: box.y + dy } }));
     }
-    return model;
+    return null;
   }
 
   // 何も選択していなければ ↑↓ でスライド移動
   if (key === 'ArrowDown' || key === 'PageDown') return update(model, { type: 'SlideSelected', index: model.current + 1 });
   if (key === 'ArrowUp' || key === 'PageUp') return update(model, { type: 'SlideSelected', index: model.current - 1 });
-  return model;
+  return null;
 }
 
 // --- 履歴 -------------------------------------------------------------------
-
-/** Deck を変える操作。変わっていれば、変更前の Deck を履歴に積む */
-function edit(model: Model, next: Deck): Model {
-  if (next === model.deck) return model;
-  return pushHistory({ ...model, deck: next }, model.deck);
-}
-
-/** 新しい操作をしたら、やり直し（future）は捨てる。これは一般的なエディタと同じ挙動 */
-function pushHistory(model: Model, before: Deck): Model {
-  const past = [...model.history.past, before].slice(-HISTORY_LIMIT);
-  return { ...model, history: { past, future: [] } };
-}
 
 function undo(model: Model): Model {
   const { past, future } = model.history;
@@ -234,32 +244,7 @@ function restore(model: Model, deck: Deck, history: Model['history']): Model {
   };
 }
 
-// --- 小さな道具 ---------------------------------------------------------------
-
-/** ドラッグ中・テキスト編集中は、スライドの増減など大きな操作を受け付けない */
-function isBusy(model: Model): boolean {
-  return model.gesture !== null || model.editingId !== null;
-}
-
-/** 表示するスライドを切り替え、選択と編集は解除する */
-function showSlide(model: Model, index: number): Model {
-  return { ...model, current: clampSlide(model.deck, index), selectedId: null, editingId: null, gesture: null };
-}
-
-/** 新しい id（"n1", "n2", ...）を作りながら Deck を作り、使った分だけ連番を進める */
-function withNewIds(model: Model, fn: (newId: () => string) => Deck): { deck: Deck; nextId: number } {
-  let n = model.nextId;
-  const deck = fn(() => `n${n++}`);
-  return { deck, nextId: n };
-}
-
-function currentSlideId(model: Model): string {
-  return model.deck.slides[model.current].id;
-}
-
-function findElement(model: Model, id: string) {
-  return model.deck.slides[model.current]?.elements.find((e) => e.id === id);
-}
+// --- 小さな道具（update 専用。共通のものは helpers.ts） --------------------------
 
 /** 表示中のスライドの、ある要素の位置と中身が2つの Deck で同じか */
 function sameElement(model: Model, a: Deck, b: Deck, id: string): boolean {
@@ -273,10 +258,6 @@ function sameElement(model: Model, a: Deck, b: Deck, id: string): boolean {
 
 function patchElement(model: Model, id: string, patch: ElementPatch): Model {
   return { ...model, deck: updateElement(model.deck, currentSlideId(model), id, patch) };
-}
-
-function clampSlide(deck: Deck, index: number): number {
-  return Math.max(0, Math.min(deck.slides.length - 1, index));
 }
 
 function assertNever(x: never): never {

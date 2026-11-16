@@ -353,3 +353,21 @@ describe('保存状態', () => {
     expect(isDirty(saved)).toBe(true);
   });
 });
+
+describe('発表者ノート', () => {
+  it('確定すると1件だけ履歴に積み、戻せる。同じ内容なら積まない', () => {
+    const m0 = setup();
+    const m = update(m0, { type: 'NotesCommitted', index: 2, notes: 'メモ' });
+    expect(m.deck.slides[2].notes).toBe('メモ');
+    expect(m.history.past).toHaveLength(1);
+    expect(update(m, { type: 'Undo' }).deck).toBe(m0.deck);
+    expect(update(m0, { type: 'NotesCommitted', index: 2, notes: m0.deck.slides[2].notes })).toBe(m0);
+  });
+});
+
+describe('キー操作の振り分け', () => {
+  it('土台も機能も扱わないキーでは Model が変わらない', () => {
+    const m0 = setup();
+    expect(update(m0, { type: 'KeyPressed', key: 'q', shift: false, mod: false })).toBe(m0);
+  });
+});
