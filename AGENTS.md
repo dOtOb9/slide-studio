@@ -48,11 +48,12 @@ deck.html ─parse─▶ Deck（Model の一部）─serialize─▶ deck.html
 | Sub | `hooks/` | DOM の出来事（キー、描画後の位置測定、テキスト確定）を Msg に変える |
 | Cmd | `io/` | ファイルの読み書きなど外の世界との非同期処理。Model は変えず、終わった結果を Msg で送る |
 | ドメイン | `model/` | ファイル形式（parse / serialize / render）と Deck の編集・幾何計算 |
-| 機能 | `features/<名前>/` | 個々の機能の Msg・update・ツールバー部品。`features/registry.ts` に登録する（下記） |
-| 共通の道具 | `app/helpers.ts` | `edit`（履歴に積む）、`withNewIds`、`currentSlide`、`isBusy` など。update と各機能が使う |
+| プラグイン | `plugins/<名前>/` | 個々の機能の Msg・update・ツールバー部品。`plugins/builtin.ts` に並べ、起動時に `plugins/host.ts` へ登録する（下記） |
+| 公開 API | `plugin-api/` | プラグインが使ってよいものだけ（Model の型、`edit` など、Deck の編集関数）。`API_VERSION` 付き |
+| 共通の道具 | `app/helpers.ts` | `edit`（履歴に積む）、`withNewIds`、`currentSlide`、`isBusy` など。update と、`plugin-api` 経由で各プラグインが使う |
 
 1. **`src/model/` と `src/app/` は React に依存しない純粋な TypeScript。** ロジックはここに置き、単体テストを書く。`update` は Msg を順に流すだけでテストできる。
-2. **状態を変える唯一の入口は `dispatch(msg)`。** 新しい操作は「Msg を足す → update に case を足す → view から送る」の順で作る。update の `switch` は網羅チェック（`assertNever`）付きなので、扱い忘れは型エラーになる。
+2. **状態を変える唯一の入口は `dispatch(msg)`。** 新しい操作は「Msg を足す → update に case を足す → view から送る」の順で作る。update の `switch` は網羅チェック（`assertNever`）付きなので、扱い忘れは型エラーになる（土台の Msg について。プラグインの Msg は実行時に入るので、各プラグインの中でだけ網羅チェックが効く）。
 3. **view に判断を書かない。** 「選択中なら〜」のような分岐は update に置く。view が持ってよいのは、見た目だけの一時状態（画面サイズ、hover）と DOM への参照だけ。
 4. **Deck は書き換えずに新しく作る（イミュータブル）。** 編集は `model/commands.ts` の関数で行う。変更していないスライドは同じオブジェクトのまま共有されるので、履歴は古い Deck を取っておくだけで作れ、「どのスライドが変わったか」も参照の比較でわかる。
 5. **履歴は「ユーザーの1操作 = 1件」。** ドラッグは `DragStarted` 〜 `DragEnded` で1件。Deck を変える Msg を足すときは、update 内で `edit()`（即1件積む）を使うか、ジェスチャーとしてまとめるかを決める。
@@ -66,58 +67,80 @@ deck.html ─parse─▶ Deck（Model の一部）─serialize─▶ deck.html
 
 ファイル形式の仕様は README.md を参照。
 
-## 機能の足し方（features/）
+## プラグインの足し方（plugins/）
 
-新しい機能（図形、書式、整列、書き出しなど）は、土台（`app/`・`components/`）を触らずに `src/features/<名前>/` に作る。
-並列で複数のエージェントが作業しても、触るファイルが重ならないようにするため。例は `features/shapes/`。
+新しい機能（図形、書式、整列、書き出しなど）は、土台（`app/`・`components/`）を触らずにプラグインとして `src/plugins/<名前>/` に作る。
+並列で複数のエージェントが作業しても、触るファイルが重ならないようにするため。手本は `plugins/shapes/`。
 
-### ファイル構成（`features/shapes/` を手本にする）
+### 仕組み
+
+- **プラグインホスト**（`plugins/host.ts`）: 実行時に `registerPlugin(plugin, source)` で登録する。有効・無効の切り替え、取り外しもここ。
+  同梱のプラグインも、起動時（`main.tsx` → `plugins/builtin.ts`）に外部のプラグインと同じ仕組みで登録する。
+- **公開 API**（`plugin-api/index.ts`）: プラグインが使ってよいものだけ。**プラグインは `app/`・`model/` を直接 import せず、ここから import する。**
+  API を変えるときは `API_VERSION` を上げる（足しただけならマイナー、消した・意味を変えたならメジャー）。
+- **部品は UI フレームワークに依存しない形**（`PluginView`: `mount(container, ctx) => unmount`）。
+  同梱のプラグインは React で書き、`plugin-api/react.tsx` の `reactView(部品)` で包む。部品は props で `model` と `dispatch` を受け取る。
+- **プラグイン自身の状態**は `model.plugins[名前]`（`getPluginState` / `setPluginState`）。保存せず、元に戻すの対象にもならない。
+- プラグインの `update` / `onKey` が例外を出しても、ホストが受け止めて Model をそのまま返す（コンソールに出る）。
+- 外部プラグイン（`examples/sticky-note/` が手本）は `io/plugins.ts` が `import()` で読む。アプリと同じ権限で動くので、**信頼できるものだけを入れる**前提。
+
+### ファイル構成（`plugins/shapes/` を手本にする）
 
 | ファイル | 中身 | 守ること |
 |---|---|---|
-| `features/<名前>/update.ts` | Msg の型と update（純粋関数） | React・store を import しない |
-| `features/<名前>/feature.ts` | `Feature` としてまとめる（`name`・`update`・任意で `onKey`） | 同上。`name` は Msg の接頭辞と一致させる（ずれると実行時に例外） |
-| `features/<名前>/*.tsx` | ツールバーなどの部品（任意） | **store を import しない。** `FeatureViewProps`（`model` と `dispatch`）を props で受け取る |
-| `features/<名前>/style.css` | 部品のスタイル（任意） | 部品の .tsx から `import './style.css'`。土台の `index.css` には書かない。クラス名は `<名前>-` で始める |
-| `features/<名前>/*.test.ts` | テスト | 下記 |
+| `plugins/<名前>/update.ts` | Msg の型と update（純粋関数） | React・store を import しない。`plugin-api` だけを使う |
+| `plugins/<名前>/plugin.ts` | `Plugin` としてまとめる（`name`・`apiVersion`・`title`・`update`・任意で `onKey`・`toolbar`） | `name` は Msg の接頭辞と一致させる（ずれると Msg が届かず、コンソールに警告が出る） |
+| `plugins/<名前>/*.tsx` | ツールバーなどの部品（任意） | **store を import しない。** `PluginViewProps`（`model` と `dispatch`）を props で受け取る |
+| `plugins/<名前>/style.css` | 部品のスタイル（任意） | 部品の .tsx から `import './style.css'`。土台の `index.css` には書かない。クラス名は `<名前>-` で始める |
+| `plugins/<名前>/*.test.ts` | テスト | 下記 |
 
-store を import してはいけない理由: `app/update → features/registry → 機能 → store → app/update` の輪ができ、読み込み順によって registry の一覧が `undefined` になる（Step 5 の監査で実際に再現した）。
+store を import してはいけない理由: `app/update → plugins/host` はプラグインを import しないが、
+部品が store を import すると `store → update → …` の輪に入りやすく、読み込み順で壊れる（Step 5 の監査で実際に再現した）。
+store とのつなぎは `reactView` と `PluginSlot`（ctx）が受け持つ。
 
 ### 手順
 
-1. **Msg を決める。** type は必ず `"<名前>/<出来事>"`（例: `'shapes/Inserted'`）。土台の Msg と区別するため `/` を含める（`/` が無いと型エラー）。
+1. **Msg を決める。** type は必ず `"<名前>/<出来事>"`（例: `'shapes/Inserted'`）。土台の Msg と区別するため `/` を含める。
+   Msg の型は `interface` ではなく `type` で書く（`PluginMsg` に当てはまるのは type で書いた型だけ）。
+   `dispatch` に渡す Msg の type の綴りは、プラグインをまたいでは型で確かめられない。部品からは自分の Msg の型を付けて送る。
 2. **update を書く。** `(Model, あなたの Msg) → Model` の純粋関数。
-   - Deck を変えるなら `app/helpers.ts` の `edit()` を通す（履歴に1件積まれ、未保存の判定も正しくなる）。
+   - Deck を変えるなら `edit()` を通す（履歴に1件積まれ、未保存の判定も正しくなる）。
    - 新しい id は `withNewIds()` で作り、返す Model の `nextId` を更新する。
    - ドラッグ中・編集中に Deck を変えないよう `isBusy()` を確認する。
-   - Deck の変更自体は `model/commands.ts` の関数で行う。足りない関数は追加してよい（テストも書く）。
+   - Deck の変更自体は `plugin-api` の関数（`insertElement` など、中身は `model/commands.ts`）で行う。
+     足りない関数は `model/commands.ts` に追加し（テストも書く）、`plugin-api` に公開して `API_VERSION` のマイナーを上げる（下記「土台を触ってよいとき」）。
 3. **必要なら部品を書く。** 部品は `model` を読み、`dispatch` で Msg を送るだけにする。判断は update に書く。
-4. **キー操作が要るなら `onKey`。** 土台が扱わなかったキーだけが回ってくる。Ctrl 系のキーは、Model が変わればブラウザ標準の動作（ブックマーク等）が自動で止まるので、土台の `useKeyboard.ts` は触らなくてよい。
-5. **登録する。** 2つのファイルに、決まった場所へ行を足すだけ。
-   - `features/registry.ts`: ① import、② `FeatureMsg` に `| XxxMsg` の行、③ `features` に `xxx,` の行
-   - `features/toolbar.ts`（部品があるときだけ）: ① import、② `toolbarSections` に `{ name, View },` の行
-   - 並列で作業すると、これらの行が衝突する。**解消するときは両方の行を残す**（順番はツールバーの並び順になる）。
-6. **テストを書く。** `features/<名前>/*.test.ts`。土台の `update` に Msg を流せば registry 経由で届くので、`update(model, { type: '<名前>/...' })` でテストできる。
-   **ファイルの先頭で自分の `./feature` を import する**（`features/shapes/shapes.test.ts` と同じ。循環 import が無いことの確認になる）。
-   `onKey` を使う機能を初めて作るときは、「土台が扱わないキーが機能に届く」テストも足す（まだどの機能も使っていない経路のため）。
-7. **ブラウザで確認する**（下記「ブラウザでの動作確認」）。部品を足したなら、少なくともボタンを押して Model が期待どおり変わることを見る。
+4. **キー操作が要るなら `onKey`。** 土台が扱わなかったキーだけが、有効なプラグインに登録順で回ってくる。Ctrl 系のキーは、Model が変われば
+   ブラウザ標準の動作（ブックマーク等）が自動で止まるので、土台の `useKeyboard.ts` は触らなくてよい。
+5. **登録する。** `plugins/builtin.ts` の ① に import、② に `xxx,` の行を足すだけ（並び順がツールバーの並び順）。
+   並列で作業すると、これらの行が衝突する。**解消するときは両方の行を残す。**
+6. **テストを書く。** `plugins/<名前>/*.test.ts`。**ファイルの先頭で自分の `./plugin` を import し、`registerPlugin(xxx, 'builtin')` で登録する**
+   （テストは `main.tsx` を通らないため。テストファイルごとに登録簿は空から始まる）。あとは土台の `update` に Msg を流せば届く。
+   手本は `plugins/shapes/shapes.test.ts`。
+7. **ブラウザで確認する**（下記「ブラウザでの動作確認」）。部品を足したなら、少なくともボタンを押して Model が期待どおり変わることと、
+   プラグインの一覧で無効→有効にしても部品が動くことを見る。
 
 ### 土台を触ってよいとき
 
-- 機能固有の状態がどうしても要る（例: 書式パネルの開閉は部品の中の状態で済むので不要。「書式のコピー」のように操作をまたいで覚える値は要る）→ `app/model.ts` に欄を足す。
+- `plugin-api` に無いものが要る（例: Deck の新しい編集関数）→ `model/commands.ts` などに足し、`plugin-api/index.ts` から公開して `API_VERSION` のマイナーを上げる。
 - 新しいファイル形式を足す → `model/` の parse / serialize と README の「ファイル形式」を更新し、ラウンドトリップのテストを書く。
-- どちらも、その機能の作業とは**別のコミット**にし、理由を書く。並列で作業しているなら、オーナー（または統合役）に先に知らせる。
+- どちらも、そのプラグインの作業とは**別のコミット**にし、理由を書く。並列で作業しているなら、オーナー（または統合役）に先に知らせる
+  （`plugin-api/index.ts` と `API_VERSION` は並列の作業で衝突しやすい。版の上げ方は統合役が合流のときにそろえる）。
+- 操作をまたいで覚える値（例: 「書式のコピー」で写した書式）は、土台を触らずに `model.plugins[名前]` に持つ。
+  部品の開閉のような見た目だけの状態は、部品の中に持つ。
 
 ### 合流（統合役の仕事）
 
-- README の「操作」の表は、各機能のブランチでは更新せず、統合役が合流のときにまとめて更新する（同じ表を並列で書き換えると衝突するため）。
-- 合流したら、全機能を合わせた状態で vitest / tsc / eslint とブラウザ確認を通す。
+- README の「操作」の表は、各プラグインのブランチでは更新せず、統合役が合流のときにまとめて更新する（同じ表を並列で書き換えると衝突するため）。
+- 合流したら、全プラグインを合わせた状態で vitest / tsc / eslint とブラウザ確認を通す。
 
 ## ブラウザでの動作確認
 
 Playwright はプロジェクトに入れていない。一時ディレクトリに `playwright-core` を入れ、
 Edge をデバッグポート付きで起動して `chromium.connectOverCDP('http://127.0.0.1:9333')` で接続する
 （`chromium.launch({ channel: 'msedge' })` はこの環境では起動に失敗する）。
+Edge が IPv6（`::1`）だけで待ち受けることがある。つながらないときは `http://[::1]:9333` を試す。
+前のセッションの Edge が同じポートに残っていると、接続がタイムアウトする。そのときは古い Edge を止める。
 
 ```
 msedge --headless=new --remote-debugging-port=9333 --user-data-dir=<一時ディレクトリ> about:blank

@@ -44,28 +44,35 @@ src/
     render.ts       Slide → 表示用 HTML（位置を解決して絶対配置にする）
     commands.ts     編集操作（古い Deck → 新しい Deck）
     geometry.ts     リサイズなどの位置計算
-  features/       ← 個々の機能（土台を触らずに足せる。AGENTS.md「機能の足し方」）
-    types.ts        機能の形（Feature、部品が受け取る props）
-    registry.ts     機能の登録簿（純粋な部分。update から呼ばれる）
-    toolbar.ts      ツールバーに並べる部品の登録簿
-    shapes/         図形・テキストボックスの挿入（機能の手本）
+  plugin-api/     ← プラグインに公開する API（下記「プラグイン」）
+    index.ts        型・関数・API_VERSION・外部プラグインに渡す api
+    react.tsx       React で書いた部品をプラグインの部品にする橋渡し（reactView）
+  plugins/        ← 個々の機能（土台を触らずに足せる。AGENTS.md「プラグインの足し方」）
+    host.ts         プラグインホスト（実行時の登録・有効／無効、Msg とキーの振り分け）
+    builtin.ts      同梱のプラグインの一覧（起動時に登録する）
+    shapes/         図形・テキストボックスの挿入（プラグインの手本）
   io/             ← ファイルの読み書き（Elm でいう Cmd）
     file.ts              File System Access API（無ければ input / ダウンロード）
     commands.ts          開く・保存の手順（終わったら Msg を送る）
+    plugins.ts           外部プラグインの読み込み（ファイル・URL から import()）
   hooks/          ← DOM の出来事を Msg に変える
     useKeyboard.ts       キー入力
     useUnsavedGuard.ts   未保存の表示と、閉じるときの確認
     useBoxMeasurement.ts 描画後の要素位置の測定
     useTextEditing.ts    テキスト編集（contentEditable）
     useElementSize.ts    領域の大きさ
+    usePlugins.ts        プラグインの一覧を読む
   components/     ← 画面部品（Model を読んで描画し、Msg を送る）
     Toolbar.tsx        開く・元に戻す・やり直し
+    PluginSlot.tsx     プラグインの部品を置く場所（mount / unmount を呼ぶ）
+    PluginManager.tsx  プラグインの一覧（有効／無効・読み込み）
     ThumbnailList.tsx  スライド一覧
     Stage.tsx          中央の作業領域
     EditorCanvas.tsx   キャンバス（プロキシ・選択枠）
     SelectionFrame.tsx 選択枠とリサイズ用ハンドル
     SlideView.tsx      スライドを Shadow DOM 内に縮小表示
   App.tsx         ← 画面全体の配置
+examples/         ← 外部プラグインの例（sticky-note: 付箋）
 ```
 
 データの流れ（Elm の TEA と同じ）: 操作 → **Msg** → **update** → **Model** → 画面
@@ -86,5 +93,53 @@ src/
 | サムネイルのドラッグ | スライドの並べ替え |
 | ツールバー | 上記に加え、レイアウトを選んでスライド追加、スライドの削除、テキスト・四角・円・矢印の挿入 |
 | ノート欄（キャンバスの下） | 発表者ノート。フォーカスを外すと確定し、元に戻せる |
+| 🧩 プラグイン | プラグインの一覧。有効／無効の切り替え、外部プラグインの読み込み（ファイル・URL）と取り外し |
 
 空のプレースホルダーには、編集画面だけ「ダブルクリックしてタイトルを入力」などの案内が出る（保存・書き出しには含まれない）。
+
+## プラグイン
+
+すべての機能（図形の挿入など）はプラグインとして作られていて、後から外部のプラグインを読み込める。
+同梱のプラグインも外部のプラグインも、起動時・読み込み時に同じ仕組み（`registerPlugin`）で登録される。
+
+**注意: 外部のプラグインはアプリと同じ権限で動く。信頼できるものだけを読み込むこと。**
+読み込んだ外部プラグインは、ページを開き直すと外れる（いまは覚えておかない）。
+
+### 外部プラグインの書き方
+
+1ファイルの ES モジュール（素の JavaScript、ビルド不要）。ほかのファイルは import しない。
+アプリの API は引数で受け取る。手本は [examples/sticky-note/plugin.js](examples/sticky-note/plugin.js)。
+
+```js
+export default function myPlugin(api) {   // api: アプリの API（plugin-api の `api`）
+  return {
+    name: 'my-plugin',                     // 英小文字・数字・ハイフン。Msg の接頭辞になる
+    apiVersion: '1.0',                     // 作ったときの API の版
+    title: '表示名',
+    update(model, msg) {                   // (Model, Msg) → Model の純粋関数。msg.type は 'my-plugin/…'
+      return model;
+    },
+    onKey(model, key) { return null; },    // 任意。土台が扱わなかったキーを自分の Msg に変える
+    toolbar: {                             // 任意。ツールバーの部品
+      mount(container, ctx) {              // container に DOM を作る。ctx: getModel / dispatch / subscribe
+        return () => {};                   // 片付ける関数を返す
+      },
+    },
+  };
+}
+```
+
+| api の中身 | 用途 |
+|---|---|
+| `edit(model, deck)` | Deck を変える（元に戻すの履歴に1件積む） |
+| `withNewIds(model, fn)` | 新しい要素の id を作る（返り値の `nextId` を Model に入れる） |
+| `currentSlide` / `findElement` / `isBusy` | 表示中のスライド、表示中のスライドの要素、ドラッグ・編集中か |
+| `insertElement` / `updateElement` / `deleteElement` / `setNotes` | Deck の編集（新しい Deck を返す） |
+| `getPluginState` / `setPluginState` | プラグイン自身の状態（`model.plugins[名前]`。保存せず、元に戻すの対象外） |
+| `version` | アプリの API の版 |
+
+**版の互換性**: API の版は「メジャー.マイナー」。プラグインの `apiVersion` のメジャーがアプリと同じで、マイナーがアプリ以下なら読み込める。
+型の一覧は [src/plugin-api/index.ts](src/plugin-api/index.ts)。
+
+読み込み: ツールバーの「🧩 プラグイン」→「ファイルから読み込む…」か、URL を入れて「URL から読み込む」
+（URL の場合は、そのサーバーが CORS を許可している必要がある）。
