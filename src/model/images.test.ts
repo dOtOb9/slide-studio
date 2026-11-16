@@ -11,6 +11,8 @@ import {
   usedImagePaths,
 } from './images';
 import { parseDeck } from './parse';
+import { renderSlideHtml } from './render';
+import { serializeDeck } from './serialize';
 
 const HASH = 'a'.repeat(64);
 
@@ -145,5 +147,72 @@ describe('外から来る値: ImagesAdded の images 欄（acceptImages）', () 
       expect(images).toEqual({});
       expect(rejected).toHaveLength(1);
     }
+  });
+});
+
+// --- ファイル形式と表示（parse / serialize / render） ------------------------------
+
+describe('images/ の画像とファイル形式', () => {
+  const html = `<!doctype html><body>
+<section data-layout="blank">
+  <img data-el src="images/${HASH}.png" alt="写真" style="left:10px; top:20px; width:300px; height:200px">
+  <img data-el src="data:image/svg+xml;base64,PHN2Zy8+" style="left:400px; top:20px">
+  <img data-el src="images/../outside.png">
+  <img data-el src="https://example.com/a.png">
+  <div data-el><img src="images/${HASH}.png"></div>
+</section>
+</body>`;
+  const deck = parseDeck(html);
+  const srcs = (d: typeof deck) => d.slides[0].elements.map((e) => e.attrs.src ?? e.html);
+
+  it('images/ 参照・data URI・管理対象外の src が、読み込み→書き出し→読み込みで変わらない（ラウンドトリップ）', () => {
+    const again = parseDeck(serializeDeck(deck));
+    expect(srcs(again)).toEqual(srcs(deck));
+    expect(srcs(deck)).toEqual([
+      `images/${HASH}.png`,
+      'data:image/svg+xml;base64,PHN2Zy8+',
+      'images/../outside.png',
+      'https://example.com/a.png',
+      `<img src="images/${HASH}.png">`,
+    ]);
+    expect(serializeDeck(again)).toBe(serializeDeck(deck));
+  });
+
+  it('serializeDeck に resolveSrc を渡すと、管理対象の画像の src だけを差し替えて書く（埋め込み用）', () => {
+    const out = serializeDeck(deck, (path) => `data:image/png;base64,${path.length}`);
+    const written = parseDeck(out);
+    expect(srcs(written)).toEqual([
+      `data:image/png;base64,${`images/${HASH}.png`.length}`,
+      'data:image/svg+xml;base64,PHN2Zy8+',
+      'images/../outside.png',
+      'https://example.com/a.png',
+      `<img src="images/${HASH}.png">`, // 要素の中身の <img> は対象外
+    ]);
+    // 元の Deck は変えない
+    expect(deck.slides[0].elements[0].attrs.src).toBe(`images/${HASH}.png`);
+  });
+
+  it('renderSlideHtml に resolveSrc を渡すと、管理対象の画像の src だけが差し替わる', () => {
+    const seen: string[] = [];
+    const rendered = renderSlideHtml(deck, deck.slides[0], (path) => {
+      seen.push(path);
+      return 'blob:http://localhost/1234';
+    });
+    expect(seen).toEqual([`images/${HASH}.png`]);
+    const doc = new DOMParser().parseFromString(rendered, 'text/html');
+    const imgs = Array.from(doc.querySelectorAll('section > img')).map((i) => i.getAttribute('src'));
+    expect(imgs).toEqual([
+      'blob:http://localhost/1234',
+      'data:image/svg+xml;base64,PHN2Zy8+',
+      'images/../outside.png',
+      'https://example.com/a.png',
+    ]);
+    expect(doc.querySelector('section > div img')!.getAttribute('src')).toBe(`images/${HASH}.png`);
+    // ほかの属性は残る
+    expect(doc.querySelector('section > img')!.getAttribute('alt')).toBe('写真');
+  });
+
+  it('resolveSrc を省略すると、src はそのまま', () => {
+    expect(renderSlideHtml(deck, deck.slides[0])).toContain(`src="images/${HASH}.png"`);
   });
 });

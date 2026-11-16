@@ -1,6 +1,7 @@
 // Deck → HTML 文字列への変換（保存用）。
 // 人間や AI が読みやすいよう、インデントを揃えて書き出す。
 
+import { isImagePath } from './images';
 import { GEOMETRY } from './parse';
 import type { Deck, Rect, SlideElement } from './types';
 
@@ -44,13 +45,33 @@ export function elementHtml(
   return VOID_TAGS.has(tag) ? open : `${open}${inner}</${tag}>`;
 }
 
-function serializeElement(el: SlideElement): string {
+/**
+ * 画像の src を差し替える関数。images/ の画像パス（model/images.ts の管理対象）を受け取り、
+ * 実際に使う src（表示用の Blob URL、埋め込み用の data URI など）を返す
+ */
+export type ResolveSrc = (path: string) => string;
+
+/**
+ * 要素の属性。img 要素の src が管理対象の画像パスなら、resolveSrc で差し替える。
+ * それ以外の src（data URI、外部の URL、管理対象外のパス）は触らない
+ */
+export function elementAttrs(el: SlideElement, resolveSrc?: ResolveSrc): Record<string, string> {
+  if (!resolveSrc || el.tag !== 'img' || !isImagePath(el.attrs.src)) return el.attrs;
+  return { ...el.attrs, src: resolveSrc(el.attrs.src) };
+}
+
+function serializeElement(el: SlideElement, resolveSrc?: ResolveSrc): string {
   const attrs: Record<string, string> = el.ph ? { 'data-ph': el.ph } : { 'data-el': '' };
-  Object.assign(attrs, el.attrs);
+  Object.assign(attrs, elementAttrs(el, resolveSrc));
   return elementHtml(el.tag, attrs, styleText(el.rect, el.style), el.html);
 }
 
-export function serializeDeck(deck: Deck): string {
+/**
+ * Deck を deck.html の文字列にする。
+ * resolveSrc を渡すと、images/ の画像の src を差し替えて書く（画像を data URI で埋め込んだ1ファイルを作るとき）。
+ * 省略すれば src はそのまま
+ */
+export function serializeDeck(deck: Deck, resolveSrc?: ResolveSrc): string {
   const out: string[] = [];
   out.push('<!doctype html>');
   out.push('<html lang="ja">');
@@ -74,7 +95,7 @@ export function serializeDeck(deck: Deck): string {
 
   for (const slide of deck.slides) {
     out.push(`<section data-layout="${escapeAttr(slide.layout)}">`);
-    for (const el of slide.elements) out.push('  ' + serializeElement(el));
+    for (const el of slide.elements) out.push('  ' + serializeElement(el, resolveSrc));
     if (slide.notes) out.push(`  <aside data-notes>${escapeText(slide.notes)}</aside>`);
     out.push('</section>');
   }
