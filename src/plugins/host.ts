@@ -149,12 +149,20 @@ export function updatePlugin(model: Model, msg: PluginMsg): Model {
 
 /**
  * Model らしい形か（最低限の確認）。外部プラグインの update が {} などを返すと、
- * 画面のあちこちが model.deck や model.history を読んで落ちるため
+ * 画面のあちこちが model.deck や model.history を読んで落ちるため。
+ * images も確かめる（...model を展開せずに作った Model だと、ツールバーと表示が images を読んで落ちるため。Step 8 audit-1 #4）
  */
 function looksLikeModel(value: unknown): value is Model {
   if (!value || typeof value !== 'object') return false;
   const m = value as Partial<Model>;
-  return typeof m.deck === 'object' && m.deck !== null && typeof m.history === 'object' && m.history !== null;
+  return (
+    typeof m.deck === 'object' &&
+    m.deck !== null &&
+    typeof m.history === 'object' &&
+    m.history !== null &&
+    typeof m.images === 'object' &&
+    m.images !== null
+  );
 }
 
 /** 土台が扱わなかったキーを、有効なプラグインに順に聞く。どれかが Msg を返したら、それを update で処理する */

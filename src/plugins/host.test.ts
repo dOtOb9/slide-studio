@@ -150,6 +150,16 @@ describe('Msg の振り分け', () => {
     expect(update(m0, { type: 'bad/Thing' })).toBe(m0);
   });
 
+  it('update が images の無い Model を返しても、Model はそのまま（Step 8 audit-1 #4）', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    registerPlugin(
+      { name: 'bad', apiVersion: '1.0', update: (m: Model) => ({ deck: m.deck, history: m.history }) },
+      'external',
+    );
+    const m0 = setup();
+    expect(update(m0, { type: 'bad/Thing' })).toBe(m0);
+  });
+
   it('別のファイルを開いても、プラグイン自身の状態は残る', () => {
     registerPlugin(counter, 'external');
     const m = update(setup(), { type: 'counter/Added' });
