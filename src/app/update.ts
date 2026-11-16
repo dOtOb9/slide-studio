@@ -17,6 +17,8 @@ export function update(model: Model, msg: Msg): Model {
       return initModel(msg.deck, msg.fileName);
 
     case 'SlideSelected':
+      // ドラッグ中に切り替えると、途中まで動かした分が履歴に残らなくなるので無視する
+      if (model.gesture) return model;
       return {
         ...model,
         current: clampSlide(model.deck, msg.index),
@@ -67,8 +69,13 @@ export function update(model: Model, msg: Msg): Model {
       const g = model.gesture;
       if (!g) return model;
       const ended = { ...model, gesture: null };
+      // 動かしてから元の位置に戻した場合など、中身が始める前と同じなら履歴に積まない。
+      // Deck も始める前のものに戻しておく（参照が同じ = 変更なし、という約束を保つため）
+      if (model.deck === g.before || sameElement(model, g.before, model.deck, g.id)) {
+        return { ...ended, deck: g.before };
+      }
       // 実際に変わっていれば、操作を始める前の Deck を履歴に1件だけ積む
-      return model.deck === g.before ? ended : pushHistory(ended, g.before);
+      return pushHistory(ended, g.before);
     }
 
     case 'EditRequested': {
@@ -193,6 +200,16 @@ function currentSlideId(model: Model): string {
 
 function findElement(model: Model, id: string) {
   return model.deck.slides[model.current]?.elements.find((e) => e.id === id);
+}
+
+/** 表示中のスライドの、ある要素の位置と中身が2つの Deck で同じか */
+function sameElement(model: Model, a: Deck, b: Deck, id: string): boolean {
+  const ea = a.slides[model.current]?.elements.find((e) => e.id === id);
+  const eb = b.slides[model.current]?.elements.find((e) => e.id === id);
+  if (!ea || !eb) return false;
+  const ra = ea.rect;
+  const rb = eb.rect;
+  return ra.x === rb.x && ra.y === rb.y && ra.w === rb.w && ra.h === rb.h && ea.html === eb.html;
 }
 
 function patchElement(model: Model, id: string, patch: ElementPatch): Model {

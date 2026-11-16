@@ -55,7 +55,65 @@ describe('ドラッグで移動', () => {
   });
 });
 
+describe('見た目が変わらない操作は履歴に積まない', () => {
+  it('ハンドルを押して動かさずに離す', () => {
+    const m0 = setup();
+    const m = run(
+      m0,
+      { type: 'DragStarted', id: el(m0, 3).id, handle: { hx: 1, hy: 1 }, pointer: p(0, 0) },
+      { type: 'DragMoved', pointer: p(0.2, 0.3), shift: false },
+      { type: 'DragEnded' },
+    );
+    expect(m.deck).toBe(m0.deck);
+    expect(m.history.past).toHaveLength(0);
+  });
+
+  it('動かしてから元の位置に戻して離す', () => {
+    const m0 = setup();
+    const m = run(
+      m0,
+      { type: 'DragStarted', id: el(m0, 2).id, handle: null, pointer: p(0, 0) },
+      { type: 'DragMoved', pointer: p(50, 50), shift: false },
+      { type: 'DragMoved', pointer: p(0, 0), shift: false },
+      { type: 'DragEnded' },
+    );
+    expect(m.history.past).toHaveLength(0);
+    expect(m.deck).toBe(m0.deck);
+  });
+});
+
+describe('ドラッグ中の他の操作', () => {
+  it('スライドの切り替えは無視する（途中の変更を履歴から漏らさない）', () => {
+    const m0 = setup();
+    const dragging = run(
+      m0,
+      { type: 'DragStarted', id: el(m0, 2).id, handle: null, pointer: p(0, 0) },
+      { type: 'DragMoved', pointer: p(50, 0), shift: false },
+    );
+    expect(update(dragging, { type: 'SlideSelected', index: 0 })).toBe(dragging);
+  });
+
+  it('テキスト編集中はドラッグを始めない', () => {
+    const m0 = setup();
+    const editing = update(m0, { type: 'EditRequested', id: el(m0, 0).id });
+    expect(update(editing, { type: 'DragStarted', id: el(m0, 2).id, handle: null, pointer: p(0, 0) })).toBe(editing);
+  });
+});
+
 describe('ハンドルでリサイズ', () => {
+  it('1回のリサイズは1回の Undo で戻る', () => {
+    const m0 = setup();
+    const m = run(
+      m0,
+      { type: 'DragStarted', id: el(m0, 2).id, handle: { hx: 1, hy: 0 }, pointer: p(0, 0) },
+      { type: 'DragMoved', pointer: p(30, 0), shift: false },
+      { type: 'DragMoved', pointer: p(60, 0), shift: false },
+      { type: 'DragEnded' },
+      { type: 'Undo' },
+    );
+    expect(m.deck).toBe(m0.deck);
+  });
+
   it('画像は角で縦横比を保ち、Shift で解除できる', () => {
     const m0 = setup();
     const img = el(m0, 3).id; // 1500,640 320x240
@@ -122,6 +180,23 @@ describe('元に戻す／やり直し', () => {
     expect(m.current).toBe(2);
   });
 
+  it('履歴は 100 件まで。古いものから捨てる', () => {
+    const m0 = setup();
+    let m = update(m0, { type: 'ElementSelected', id: el(m0, 2).id });
+    // テストでは位置を測り直さない（BoxesMeasured が来ない）ので、左右交互に押して毎回変化させる
+    for (let i = 0; i < 105; i++) {
+      m = update(m, { type: 'KeyPressed', key: i % 2 ? 'ArrowLeft' : 'ArrowRight', shift: false, mod: false });
+    }
+    expect(m.history.past).toHaveLength(100);
+  });
+
+  it('戻した後も要素が残っていれば選択を保つ', () => {
+    const m0 = setup();
+    const id = el(m0, 2).id;
+    const m = run(m0, { type: 'ElementSelected', id }, { type: 'KeyPressed', key: 'ArrowRight', shift: false, mod: false }, { type: 'Undo' });
+    expect(m.selectedId).toBe(id);
+  });
+
   it('履歴が無いときの Undo / Redo は何もしない', () => {
     const m0 = setup();
     expect(update(m0, { type: 'Undo' })).toBe(m0);
@@ -157,6 +232,16 @@ describe('テキスト編集', () => {
     const editing = update(m1, { type: 'EditRequested', id: el(m1, 0).id });
     expect(update(editing, { type: 'KeyPressed', key: 'Delete', shift: false, mod: false })).toBe(editing);
     expect(update(editing, { type: 'Undo' })).toBe(editing);
+  });
+});
+
+describe('キー操作', () => {
+  it('Enter で編集開始、Escape で選択解除', () => {
+    const m0 = setup();
+    const id = el(m0, 0).id;
+    const selected = update(m0, { type: 'ElementSelected', id });
+    expect(update(selected, { type: 'KeyPressed', key: 'Enter', shift: false, mod: false }).editingId).toBe(id);
+    expect(update(selected, { type: 'KeyPressed', key: 'Escape', shift: false, mod: false }).selectedId).toBeNull();
   });
 });
 

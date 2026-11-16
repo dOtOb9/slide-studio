@@ -11,6 +11,10 @@ export function useKeyboard() {
     const onKeyDown = (e: KeyboardEvent) => {
       // テキスト編集中のキーは文字入力（とブラウザ自身の Ctrl+Z）に任せる
       if (getModel().editingId) return;
+      // ボタンなどにフォーカスがあるときの Enter / Space は、そのボタンを押す操作なのでブラウザに任せる
+      // （Ctrl+Z などは、元に戻すボタンを押した直後でも効くよう、ここでは止めない）
+      const onControl = e.target instanceof Element && e.target.closest('button, input, label');
+      if ((e.key === 'Enter' || e.key === ' ') && onControl) return;
       const mod = e.ctrlKey || e.metaKey;
       // ブラウザ標準の動作（矢印でのスクロールなど）を止めるキー
       if (e.key.startsWith('Arrow') || e.key === 'Enter' || (mod && /^[zy]$/i.test(e.key))) {
