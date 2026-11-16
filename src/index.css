@@ -234,7 +234,7 @@ body {
   height: 10px;
   margin: -5px 0 0 -5px; /* ハンドルの中心を角・辺の中点に合わせる */
   background: var(--bg-surface);
-  border: 1.5px solid var(--accent);
+  border: 1.5px solid var(--accent); /* 線の例外: キャンバス上の選択枠（操作の対象を示す） */
   border-radius: 2px;
   pointer-events: auto;
 }
