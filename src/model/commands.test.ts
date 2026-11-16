@@ -27,7 +27,25 @@ describe('updateElement', () => {
   });
 });
 
+describe('updateElement（異常な入力）', () => {
+  it('NaN や Infinity は捨て、ファイルに書き出さない', () => {
+    const next = updateElement(deck, slide.id, title.id, { rect: { x: NaN, w: Infinity, y: 50 } });
+    expect(next.slides[1].elements[0].rect).toEqual({ y: 50 });
+    expect(serializeDeck(next)).not.toContain('NaN');
+  });
+
+  it('存在しない id なら何も変わらない', () => {
+    const next = updateElement(deck, slide.id, 'no-such-id', { html: 'x' });
+    expect(serializeDeck(next)).toBe(serializeDeck(deck));
+  });
+});
+
 describe('deleteElement', () => {
+  it('存在しない id なら何も消えない', () => {
+    const next = deleteElement(deck, slide.id, 'no-such-id');
+    expect(next.slides[1].elements).toHaveLength(slide.elements.length);
+  });
+
   it('要素を取り除く', () => {
     const next = deleteElement(deck, slide.id, title.id);
     expect(next.slides[1].elements.map((e) => e.ph)).toEqual(['body']);

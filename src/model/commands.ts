@@ -15,10 +15,15 @@ function mapSlide(deck: Deck, slideId: string, fn: (slide: Slide) => Slide): Dec
   return { ...deck, slides: deck.slides.map((s) => (s.id === slideId ? fn(s) : s)) };
 }
 
-/** 位置は整数 px に丸める（ファイルに 123.4567px のような値が残らないように） */
+/**
+ * 位置は整数 px に丸める（ファイルに 123.4567px のような値が残らないように）。
+ * NaN や Infinity は計算の不具合なので、ファイルを壊さないよう捨てる。
+ */
 function roundRect(rect: Partial<Rect>): Partial<Rect> {
   const out: Partial<Rect> = {};
-  for (const [k, v] of Object.entries(rect) as [keyof Rect, number][]) out[k] = Math.round(v);
+  for (const [k, v] of Object.entries(rect) as [keyof Rect, number][]) {
+    if (Number.isFinite(v)) out[k] = Math.round(v);
+  }
   return out;
 }
 

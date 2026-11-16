@@ -30,10 +30,17 @@ export function resizeRect(box: Rect, handle: Handle, dx: number, dy: number, ke
   let w = box.w + hx * dx;
   let h = box.h + hy * dy;
 
-  // 角のハンドルで縦横比を保つ: 変化の大きい方に合わせる
-  if (keepRatio && hx !== 0 && hy !== 0) {
-    if (w / box.w > h / box.h) h = (w * box.h) / box.w;
-    else w = (h * box.w) / box.h;
+  // 角のハンドルで縦横比を保つ。
+  // 倍率 s を「元の大きさからの変化が大きい方」（拡大でも縮小でも）に合わせ、幅・高さの両方に掛ける。
+  // 幅か高さが 0 の要素は比率が定義できないので対象外（0 で割って NaN になるのを防ぐ）
+  if (keepRatio && hx !== 0 && hy !== 0 && box.w > 0 && box.h > 0) {
+    const sx = w / box.w;
+    const sy = h / box.h;
+    let s = Math.abs(sx - 1) > Math.abs(sy - 1) ? sx : sy;
+    // 最小サイズで片側だけ切り詰めると比率が崩れるので、倍率の段階で下限を掛ける
+    s = Math.max(s, MIN_SIZE / box.w, MIN_SIZE / box.h);
+    w = box.w * s;
+    h = box.h * s;
   }
   w = Math.max(MIN_SIZE, w);
   h = Math.max(MIN_SIZE, h);
