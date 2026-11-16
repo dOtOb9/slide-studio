@@ -48,6 +48,8 @@ deck.html ─parse─▶ Deck（Model の一部）─serialize─▶ deck.html
 | Sub | `hooks/` | DOM の出来事（キー、描画後の位置測定、テキスト確定）を Msg に変える |
 | Cmd | `io/` | ファイルの読み書きなど外の世界との非同期処理。Model は変えず、終わった結果を Msg で送る |
 | ドメイン | `model/` | ファイル形式（parse / serialize / render）と Deck の編集・幾何計算 |
+| 機能 | `features/<名前>/` | 個々の機能の Msg・update・ツールバー部品。`features/registry.ts` に登録する（下記） |
+| 共通の道具 | `app/helpers.ts` | `edit`（履歴に積む）、`withNewIds`、`currentSlide`、`isBusy` など。update と各機能が使う |
 
 1. **`src/model/` と `src/app/` は React に依存しない純粋な TypeScript。** ロジックはここに置き、単体テストを書く。`update` は Msg を順に流すだけでテストできる。
 2. **状態を変える唯一の入口は `dispatch(msg)`。** 新しい操作は「Msg を足す → update に case を足す → view から送る」の順で作る。update の `switch` は網羅チェック（`assertNever`）付きなので、扱い忘れは型エラーになる。
@@ -63,6 +65,20 @@ deck.html ─parse─▶ Deck（Model の一部）─serialize─▶ deck.html
 11. ライブラリは「自前で書くと難しく、かつ TEA の流れを壊さないもの」に限る（例: react-moveable は対象要素を自分で書き換える前提で相性が悪く、Step 2 で外した）。
 
 ファイル形式の仕様は README.md を参照。
+
+## 機能の足し方（features/）
+
+新しい機能（図形、書式、整列、書き出しなど）は、土台（`app/`・`components/`）を触らずに `src/features/<名前>/` に作る。
+並列で複数のエージェントが作業しても、触るファイルが重ならないようにするため。例は `features/shapes/`。
+
+1. **Msg を決める。** type は必ず `"<名前>/<出来事>"`（例: `'shapes/Inserted'`）。土台の Msg と区別するため `/` を含める。
+2. **update を書く。** `(Model, あなたの Msg) → Model` の純粋関数。Deck を変えるなら `app/helpers.ts` の `edit()` を通す（履歴に1件積まれ、未保存の判定も正しくなる）。新しい id は `withNewIds()` で作り、返す Model の `nextId` を更新する。ドラッグ中・編集中に Deck を変えないよう `isBusy()` を確認する。Deck の変更自体は `model/commands.ts` の関数で行い、足りない関数は追加してよい（テストも書く）。
+3. **必要なら UI を書く。** `ToolbarSection`（ツールバーに並ぶ部品）。部品は Model を読み、Msg を送るだけにする。キー操作は `onKey`（土台が扱わなかったキーだけが回ってくる）。
+4. **`index.ts` で `Feature` としてまとめ、`features/registry.ts` の2か所に1行ずつ足す**（`FeatureMsg` の型と `features` の配列）。
+5. **テストを書く。** `features/<名前>/*.test.ts`。土台の `update` に Msg を流せば registry 経由で届くので、`update(model, { type: '<名前>/...' })` でテストできる。
+
+土台の変更がどうしても必要なとき（Model に欄を足す、新しいファイル形式を足す、など）は、その機能の作業とは別のコミットにし、理由を書く。
+ファイル形式を足すときは README の「ファイル形式」を更新し、ラウンドトリップのテストを書く。
 
 ## ブラウザでの動作確認
 

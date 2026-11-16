@@ -20,8 +20,13 @@ npx vitest      # テスト
 | `<section data-layout="名前">` | スライド1枚 |
 | `<div data-ph="title">` | プレースホルダー。位置はレイアウトから継承し、`style` に書いた分だけ上書き |
 | `<div data-el style="left:..px; top:..px; width:..px; height:..px">` | 自由配置の要素 |
+| `<div data-el data-shape="rect">` / `data-shape="ellipse"` | 図形（四角・円）。色などは `style` に書く |
+| `<svg data-el data-shape="arrow" viewBox="..." preserveAspectRatio="none">` | 線・矢印などの SVG 図形。`vector-effect="non-scaling-stroke"` を付けると伸ばしても線の太さが変わらない |
+| `<img data-el src="data:image/png;base64,...">` | 画像。いまは HTML に埋め込む（1ファイルで持ち運べるため）。別ファイル参照（`src="images/a.png"`）も表示はできる |
+| `<aside data-notes>…</aside>` | 発表者ノート（section の中、プレーンテキスト）。スライドには描画されない |
 
 位置は `left/top/width/height` を px で書く。それ以外のスタイルは自由。
+`section` の直下の要素は、`data-el` が付いていなくても自由配置の要素として扱う（AI が付け忘れても壊れないように）。
 
 ## 構成
 
@@ -39,6 +44,9 @@ src/
     render.ts       Slide → 表示用 HTML（位置を解決して絶対配置にする）
     commands.ts     編集操作（古い Deck → 新しい Deck）
     geometry.ts     リサイズなどの位置計算
+  features/       ← 個々の機能（土台を触らずに足せる。AGENTS.md「機能の足し方」）
+    registry.ts     機能の登録簿
+    shapes/         図形・テキストボックスの挿入
   io/             ← ファイルの読み書き（Elm でいう Cmd）
     file.ts              File System Access API（無ければ input / ダウンロード）
     commands.ts          開く・保存の手順（終わったら Msg を送る）
@@ -74,6 +82,7 @@ src/
 | Ctrl+M | 新しいスライド（表示中と同じレイアウト。表紙からなら2番目のレイアウト） |
 | Ctrl+D（要素を選んでいないとき） | スライドの複製 |
 | サムネイルのドラッグ | スライドの並べ替え |
-| ツールバー | 上記に加え、レイアウトを選んでスライド追加、スライドの削除 |
+| ツールバー | 上記に加え、レイアウトを選んでスライド追加、スライドの削除、テキスト・四角・円・矢印の挿入 |
+| ノート欄（キャンバスの下） | 発表者ノート。フォーカスを外すと確定し、元に戻せる |
 
 空のプレースホルダーには、編集画面だけ「ダブルクリックしてタイトルを入力」などの案内が出る（保存・書き出しには含まれない）。
