@@ -28,10 +28,13 @@ import {
 } from '../app/helpers';
 import type { Model } from '../app/model';
 import type { KeyInput, Msg, PluginMsg } from '../app/msg';
+import { imagePathOf, sha256Hex } from '../io/images';
 import { deleteElement, insertElement, setNotes, updateElement } from '../model/commands';
+import { imagePath, isImagePath } from '../model/images';
 
 // 1.1: 部品の見た目の約束（共通クラス .button / .icon-button と CSS 変数。README「プラグイン」）を足した
-export const API_VERSION = '1.1';
+// 1.2: images/ の画像（Model.images、Msg の ImagesAdded、imagePathOf / sha256Hex / imagePath / isImagePath）を足した
+export const API_VERSION = '1.2';
 
 // --- 型 ---------------------------------------------------------------------
 
@@ -86,10 +89,14 @@ export {
   edit,
   findElement,
   getPluginState,
+  imagePath,
+  imagePathOf,
   insertElement,
   isBusy,
+  isImagePath,
   setNotes,
   setPluginState,
+  sha256Hex,
   updateElement,
   withNewIds,
 };
@@ -110,6 +117,16 @@ export const api = {
   updateElement,
   deleteElement,
   setNotes,
+  // images/ の画像（1.2〜）。画像を置く手順:
+  //   1. 部品で画像の Blob を受け取る（ファイル選択・貼り付けなど）
+  //   2. const path = await imagePathOf(blob)   … images/<SHA-256>.<拡張子>（対応しない型なら null）
+  //   3. ctx.dispatch({ type: 'ImagesAdded', images: { [path]: blob } })   … 中身を Model.images に入れる
+  //   4. 自分の Msg の update で insertElement(…, { tag: 'img', attrs: { src: path }, … }) を edit() に通す
+  // 中身は model.images[path] で読める（増えるだけで消えない。別のファイルを開くと空になる）
+  imagePathOf,
+  sha256Hex,
+  imagePath,
+  isImagePath,
 };
 
 export type PluginApi = typeof api;
