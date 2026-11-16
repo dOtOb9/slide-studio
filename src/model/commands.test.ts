@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import sample from '../samples/sample-deck.html?raw';
-import { deleteElement, updateElement } from './commands';
+import { addSlide, deleteElement, deleteSlide, duplicateSlide, isEmptyHtml, moveSlide, updateElement } from './commands';
 import { parseDeck } from './parse';
 import { resolveRect } from './render';
 import { serializeDeck } from './serialize';
@@ -53,5 +53,63 @@ describe('deleteElement', () => {
   it('要素を取り除く', () => {
     const next = deleteElement(deck, slide.id, title.id);
     expect(next.slides[1].elements.map((e) => e.ph)).toEqual(['body']);
+  });
+});
+
+describe('スライドの操作', () => {
+  /** テスト用の id 生成（t1, t2, ... と予測できる値を返す） */
+  const ids = () => {
+    let n = 0;
+    return () => `t${++n}`;
+  };
+
+  it('addSlide: レイアウトのプレースホルダーを空の要素として持つスライドを、指定位置の後ろに入れる', () => {
+    const next = addSlide(deck, 0, 'title-body', ids());
+    expect(next.slides).toHaveLength(deck.slides.length + 1);
+    const added = next.slides[1];
+    expect(added.id).toBe('t1');
+    expect(added.layout).toBe('title-body');
+    expect(added.elements.map((e) => [e.id, e.ph, e.html])).toEqual([
+      ['t2', 'title', ''],
+      ['t3', 'body', ''],
+    ]);
+    // 空のプレースホルダーも保存でき、読み直しても残る
+    expect(serializeDeck(next)).toContain('<div data-ph="title"></div>');
+    expect(parseDeck(serializeDeck(next)).slides[1].elements).toHaveLength(2);
+  });
+
+  it('addSlide: index = -1 なら先頭に入れる', () => {
+    expect(addSlide(deck, -1, 'blank', ids()).slides[0].layout).toBe('blank');
+  });
+
+  it('duplicateSlide: 中身は同じで、id はすべて新しい', () => {
+    const next = duplicateSlide(deck, 2, ids());
+    const [a, b] = [next.slides[2], next.slides[3]];
+    expect(b.elements.map((e) => e.html)).toEqual(a.elements.map((e) => e.html));
+    expect(b.id).not.toBe(a.id);
+    expect(b.elements.map((e) => e.id)).toEqual(['t2', 't3', 't4', 't5']);
+    // 複製の rect を変えても元は変わらない（入れ子のオブジェクトも別物）
+    expect(b.elements[1].rect).not.toBe(a.elements[1].rect);
+  });
+
+  it('deleteSlide / moveSlide', () => {
+    expect(deleteSlide(deck, 0).slides.map((s) => s.id)).toEqual(deck.slides.slice(1).map((s) => s.id));
+    const ids0 = deck.slides.map((s) => s.id);
+    expect(moveSlide(deck, 0, 2).slides.map((s) => s.id)).toEqual([ids0[1], ids0[2], ids0[0], ids0[3]]);
+    expect(moveSlide(deck, 3, 0).slides.map((s) => s.id)).toEqual([ids0[3], ids0[0], ids0[1], ids0[2]]);
+  });
+
+  it('範囲外の指定では元の Deck をそのまま返す', () => {
+    expect(deleteSlide(deck, 9)).toBe(deck);
+    expect(duplicateSlide(deck, 9, ids())).toBe(deck);
+    expect(moveSlide(deck, 1, 1)).toBe(deck);
+    expect(moveSlide(deck, 0, 9)).toBe(deck);
+  });
+
+  it('isEmptyHtml', () => {
+    expect(isEmptyHtml('')).toBe(true);
+    expect(isEmptyHtml(' <br> ')).toBe(true);
+    expect(isEmptyHtml('&nbsp;')).toBe(true);
+    expect(isEmptyHtml('a')).toBe(false);
   });
 });

@@ -55,6 +55,68 @@ export function updateElement(deck: Deck, slideId: string, elementId: string, pa
   });
 }
 
+// --- スライドの操作 -----------------------------------------------------------
+// 新しい id が必要な操作は、id を作る関数 newId を引数で受け取る。
+// こうしておくと、どんな id になるかを呼び出し側（update）が決められ、テストで結果を予測できる。
+
+/**
+ * index の後ろに、指定したレイアウトの新しいスライドを挿入する（index = -1 なら先頭）。
+ * レイアウトの各プレースホルダーに対応する、中身が空の要素を用意する（PowerPoint と同じ）。
+ */
+export function addSlide(deck: Deck, index: number, layoutName: string, newId: () => string): Deck {
+  const layout = deck.layouts.find((l) => l.name === layoutName);
+  const slide: Slide = {
+    id: newId(),
+    layout: layoutName,
+    elements: (layout?.placeholders ?? []).map((ph) => ({
+      id: newId(),
+      tag: 'div',
+      ph: ph.name,
+      rect: {},
+      style: '',
+      attrs: {},
+      html: '',
+    })),
+  };
+  const slides = [...deck.slides];
+  slides.splice(index + 1, 0, slide);
+  return { ...deck, slides };
+}
+
+/** index のスライドを複製し、すぐ後ろに挿入する。要素の id はすべて新しくする */
+export function duplicateSlide(deck: Deck, index: number, newId: () => string): Deck {
+  const src = deck.slides[index];
+  if (!src) return deck;
+  const copy: Slide = {
+    ...src,
+    id: newId(),
+    elements: src.elements.map((el) => ({ ...el, id: newId(), rect: { ...el.rect }, attrs: { ...el.attrs } })),
+  };
+  const slides = [...deck.slides];
+  slides.splice(index + 1, 0, copy);
+  return { ...deck, slides };
+}
+
+export function deleteSlide(deck: Deck, index: number): Deck {
+  if (!deck.slides[index]) return deck;
+  return { ...deck, slides: deck.slides.filter((_, i) => i !== index) };
+}
+
+/** from のスライドを取り出して、to の位置に入れる（to は取り出した後の並びでの位置） */
+export function moveSlide(deck: Deck, from: number, to: number): Deck {
+  const n = deck.slides.length;
+  if (from === to || from < 0 || from >= n || to < 0 || to >= n) return deck;
+  const slides = [...deck.slides];
+  const [moved] = slides.splice(from, 1);
+  slides.splice(to, 0, moved);
+  return { ...deck, slides };
+}
+
+/** 中身が空か（テキストも画像なども無い）。空のプレースホルダーには入力を促す表示を出す */
+export function isEmptyHtml(html: string): boolean {
+  return html.replace(/<br\s*\/?>/gi, '').replace(/&nbsp;/g, '').trim() === '';
+}
+
 export function deleteElement(deck: Deck, slideId: string, elementId: string): Deck {
   return mapSlide(deck, slideId, (slide) => {
     const elements = slide.elements.filter((el) => el.id !== elementId);
