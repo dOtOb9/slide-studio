@@ -32,14 +32,8 @@ const badInputs: Record<keyof PluginContext, (() => void) | null> = {
 describe('pluginContext の各関数は、部品から来る不正な値で止まらない', () => {
   it.each(Object.entries(badInputs).filter(([, run]) => run))('%s', (_name, run) => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    const screen = vi.fn();
-    const off = useStore.subscribe(screen);
-    try {
-      expect(run!).not.toThrow();
-      expect(useStore.getState().model.deck).toBeDefined(); // Model が壊れていない
-    } finally {
-      off();
-    }
+    expect(run!).not.toThrow();
+    expect(useStore.getState().model.deck).toBeDefined(); // Model が壊れていない
   });
 });
 
