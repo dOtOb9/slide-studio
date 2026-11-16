@@ -14,7 +14,10 @@ tools: Read, Grep, Glob, Bash, Write
 
 1. `AGENTS.md` と `README.md` を読み、プロジェクトの方針・アーキテクチャの約束・ファイル形式を把握する。
 2. 依頼文で指定された差分（例: `git diff HEAD`、`git diff <commit>..HEAD`）を読む。差分に出てくるファイルは、差分の前後も含めて全体を読む。
-3. `npx vitest run`、`npx tsc -b`、`npx eslint src` を実行して結果を確かめる。
+3. `npx vitest run`、`npx tsc -b`、`npx eslint .` を**自分で**実行して結果を確かめる。
+   報告の「検証結果」には、ここで自分で実行した結果を書く。作業役の報告や CI の結果を写さない。
+   lockfile だけ・文書だけのような小さな変更でも省かない（PR #4 で、レビューをせずに「承認しました」と書いた）。
+   PR の本文の「監査役のレビュー」には、この報告の検証結果・指摘・判定を載せる（AGENTS.md「PR の本文」。CI が確かめる）。
 
 ## 見る観点
 
