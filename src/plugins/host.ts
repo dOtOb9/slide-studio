@@ -90,6 +90,12 @@ function validatePlugin(value: unknown): Plugin {
   if (typeof p.apiVersion !== 'string' || !isCompatible(p.apiVersion)) {
     throw new Error(`プラグイン ${p.name} の apiVersion（${String(p.apiVersion)}）はこのアプリ（${API_VERSION}）で動きません`);
   }
+  // 一覧の画面にそのまま描くので、文字列でないと画面全体が落ちる
+  for (const key of ['title', 'description'] as const) {
+    if (p[key] !== undefined && typeof p[key] !== 'string') {
+      throw new Error(`プラグイン ${p.name} の ${key} が文字列ではありません`);
+    }
+  }
   for (const key of ['update', 'onKey'] as const) {
     if (p[key] !== undefined && typeof p[key] !== 'function') {
       throw new Error(`プラグイン ${p.name} の ${key} が関数ではありません`);
@@ -122,11 +128,21 @@ export function updatePlugin(model: Model, msg: PluginMsg): Model {
   if (!enabled || !plugin.update) return model;
   const next = guard(plugin, () => plugin.update!(model, msg));
   if (next === undefined) return model;
-  if (!next || typeof next !== 'object') {
+  if (!looksLikeModel(next)) {
     console.error(`プラグイン ${plugin.name} の update が Model を返しませんでした`);
     return model;
   }
   return next;
+}
+
+/**
+ * Model らしい形か（最低限の確認）。外部プラグインの update が {} などを返すと、
+ * 画面のあちこちが model.deck や model.history を読んで落ちるため
+ */
+function looksLikeModel(value: unknown): value is Model {
+  if (!value || typeof value !== 'object') return false;
+  const m = value as Partial<Model>;
+  return typeof m.deck === 'object' && m.deck !== null && typeof m.history === 'object' && m.history !== null;
 }
 
 /** 土台が扱わなかったキーを、有効なプラグインに順に聞く。どれかが Msg を返したら、それを update で処理する */
@@ -134,7 +150,14 @@ export function pluginKey(model: Model, key: KeyInput, update: (model: Model, ms
   for (const { plugin, enabled } of entries) {
     if (!enabled || !plugin.onKey) continue;
     const msg = guard(plugin, () => plugin.onKey!(model, key));
-    if (msg) return update(model, msg);
+    if (!msg) continue;
+    // 返してよいのはプラグインの Msg だけ。土台の KeyPressed などを返されると、
+    // update → pluginKey → update … と無限に呼び合ってしまう
+    if (typeof msg.type !== 'string' || !isPluginMsg(msg)) {
+      console.error(`プラグイン ${plugin.name} の onKey がプラグインの Msg ではないものを返しました`, msg);
+      continue;
+    }
+    return update(model, msg);
   }
   return null;
 }

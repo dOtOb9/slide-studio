@@ -3,6 +3,7 @@ import { getPluginState, setPluginState } from '../app/helpers';
 import { initModel, type Model } from '../app/model';
 import { update } from '../app/update';
 import { parseDeck } from '../model/parse';
+import * as pluginApi from '../plugin-api';
 import { api, isCompatible, type Plugin } from '../plugin-api';
 import sample from '../samples/sample-deck.html?raw';
 import {
@@ -69,6 +70,9 @@ describe('registerPlugin', () => {
     expect(() => registerPlugin({ name: 'a', apiVersion: '9.0' }, 'external')).toThrow('apiVersion（9.0）');
     expect(() => registerPlugin({ name: 'a', apiVersion: '1.0', update: 1 }, 'external')).toThrow('update が関数ではありません');
     expect(() => registerPlugin({ name: 'a', apiVersion: '1.0', toolbar: {} }, 'external')).toThrow('mount がありません');
+    // 一覧の画面にそのまま描くので、文字列でないと画面全体が落ちる（Step 6 audit-1 #1）
+    expect(() => registerPlugin({ name: 'a', apiVersion: '1.0', title: { x: 1 } }, 'external')).toThrow('title が文字列ではありません');
+    expect(() => registerPlugin({ name: 'b', apiVersion: '1.0', description: 42 }, 'external')).toThrow('description が文字列ではありません');
     expect(listPlugins()).toEqual([]);
   });
 
@@ -114,6 +118,13 @@ describe('Msg の振り分け', () => {
     expect(update(m0, { type: 'bad/Thing' })).toBe(m0);
   });
 
+  it('update が Model らしくないオブジェクトを返しても、Model はそのまま（Step 6 audit-1 #2）', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    registerPlugin({ name: 'bad', apiVersion: '1.0', update: () => ({}) }, 'external');
+    const m0 = setup();
+    expect(update(m0, { type: 'bad/Thing' })).toBe(m0);
+  });
+
   it('別のファイルを開いても、プラグイン自身の状態は残る', () => {
     registerPlugin(counter, 'external');
     const m = update(setup(), { type: 'counter/Added' });
@@ -142,6 +153,30 @@ describe('onKey', () => {
     setPluginEnabled('off', false);
     registerPlugin(counter, 'external');
     expect(press(setup(), '+').plugins.counter).toBe(1);
+  });
+
+  it('onKey が土台の Msg（KeyPressed）を返しても無限に呼び合わず、次のプラグインに聞く（Step 6 audit-1 #3）', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    registerPlugin(
+      { name: 'loop', apiVersion: '1.0', onKey: (_m: unknown, key: object) => ({ type: 'KeyPressed', ...key }) },
+      'external',
+    );
+    registerPlugin(counter, 'external');
+    expect(press(setup(), '+').plugins.counter).toBe(1);
+    expect(error).toHaveBeenCalled();
+  });
+});
+
+describe('plugin-api', () => {
+  it('外部プラグインに渡す api と、名前付きで export している関数が同じ一覧になっている（Step 6 audit-1 #4）', () => {
+    const exported = Object.entries(pluginApi)
+      .filter(([name, value]) => typeof value === 'function' && name !== 'isCompatible')
+      .map(([name]) => name)
+      .sort();
+    const inApi = Object.keys(api)
+      .filter((name) => name !== 'version')
+      .sort();
+    expect(inApi).toEqual(exported);
   });
 });
 
