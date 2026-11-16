@@ -79,12 +79,13 @@ Step 6 では「外部プラグインの title が文字列でない」「update
 - 確かめ方は「画面や update が落ちない最低限」。全部の欄を細かく調べる必要はないが、何を確かめて何を確かめないかはコメントに書く。
 - 形が違ったら、アプリを止めずに断る（登録しない・その Msg を無かったことにする）か、読める範囲で読む（ファイル）。理由はコンソールか画面に出す。
 - 入口を足したら、下の表に1行足し、**不正な値を入れるテスト**を書く。
+  関数を受け取る入口（部品が渡すコールバックなど）では、「関数でない値」と「呼んだら例外を出す関数」の両方を試す。
 
 | 入口 | 来る値 | 確かめる場所 |
 |---|---|---|
 | 外部プラグインのモジュール | default export・Plugin の各欄 | `plugins/host.ts` の `pluginFromModule` / `validatePlugin`（欄ごとのテストは `host.test.ts` の `badFields`。Plugin に欄を足すと型エラーで気づける） |
-| プラグインの関数の戻り値 | `update` / `onKey` の戻り値 | `plugins/host.ts` の `callPlugin`（戻り値を `unknown` にしてあるので、確かめずに使うと型エラー）→ `looksLikeModel` / `looksLikeMsg` |
-| プラグインの部品 | `mount` の戻り値、`ctx.dispatch` に渡す値 | `components/PluginSlot.tsx`（関数のときだけ呼ぶ）、`plugins/host.ts` の `checkMsgFromPlugin` |
+| プラグインの関数の戻り値 | `update` / `onKey` の戻り値 | 登録簿の型 `ReceivedPlugin`（関数の欄の戻り値が `unknown`。どう呼んでも確かめずに使うと型エラー）、例外は `callPlugin` が受け止める → `looksLikeModel` / `looksLikeMsg` |
+| プラグインの部品 | `mount` の戻り値、`ctx.dispatch` に渡す値、`ctx.subscribe` に渡す関数 | `components/PluginSlot.tsx`（関数のときだけ呼ぶ）、`plugins/host.ts` の `checkMsgFromPlugin` / `listenerFromPlugin`（`app/store.ts` の `pluginContext` から呼ぶ） |
 | 開いたファイル（deck.html） | 人や AI が書いた HTML | `model/parse.ts`（知らない書き方は読める範囲で読む。README「ファイル形式」） |
 
 **残している穴**: 部品が土台の Msg（`Undo` など）を dispatch したとき、type の形は確かめるが、中身（`DeckLoaded` の deck など）は確かめない。
@@ -167,6 +168,7 @@ store とのつなぎは `reactView` と `PluginSlot`（ctx）が受け持つ。
   アイコンだけのボタンには `aria-label` も付ける（`title` と同じ文言でよい）。
 - 色は `index.css` の `:root` に CSS 変数としてまとめ、部品ごとに色を決め打ちしない（プラグインの部品も同じ変数を使える）。
 - プラグインの部品も同じ見た目にする。共通のクラス名（README「プラグイン」）を使う。
+- （2026-11-16 時点: CSS 変数と共通クラスの一覧は Step 7b で用意する。それまでの `index.css` は線で区切っている箇所が残っている）
 
 ## ブラウザでの動作確認
 
