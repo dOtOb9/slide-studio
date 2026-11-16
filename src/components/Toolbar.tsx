@@ -2,8 +2,9 @@
 
 import { isDirty } from '../app/model';
 import { useDispatch, useModel } from '../app/store';
-import { toolbarSections } from '../features/toolbar';
+import { usePlugins } from '../hooks/usePlugins';
 import { openDeck, saveDeck } from '../io/commands';
+import { PluginSlot } from './PluginSlot';
 
 export function Toolbar() {
   const fileName = useModel((m) => m.fileName);
@@ -13,8 +14,7 @@ export function Toolbar() {
   const layouts = useModel((m) => m.deck.layouts);
   const current = useModel((m) => m.current);
   const hasSlide = useModel((m) => m.deck.slides.length > 0);
-  // 機能の部品に渡す Model 全体。Model が変わるたびにツールバーも描き直すが、部品は小さいので問題ない
-  const model = useModel((m) => m);
+  const plugins = usePlugins();
   const dispatch = useDispatch();
 
   return (
@@ -73,12 +73,11 @@ export function Toolbar() {
         </button>
       </div>
 
-      {/* 各機能（features/）の部品。Model と dispatch を渡す */}
-      {toolbarSections.map(({ name, View }) => (
-        <div className="group" key={name}>
-          <View model={model} dispatch={dispatch} />
-        </div>
-      ))}
+      {/* 有効なプラグインの部品（登録した順に並ぶ）。部品は自分で Model の変化を購読して描き直す */}
+      {plugins.map(
+        ({ plugin, enabled }) =>
+          enabled && plugin.toolbar && <PluginSlot key={plugin.name} name={plugin.name} view={plugin.toolbar} />,
+      )}
 
       <span className="filename">
         {fileName}

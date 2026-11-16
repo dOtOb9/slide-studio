@@ -4,9 +4,8 @@
 // TypeScript の「判別可能な共用体」: type 欄の値で種類を見分ける。Elm のカスタム型に相当する。
 //
 // Msg = CoreMsg（アプリの土台の出来事。下に一覧）
-//     | FeatureMsg（各機能の出来事。type が "機能名/出来事"。features/registry.ts で集めている）
+//     | PluginMsg（各プラグインの出来事。type が "プラグイン名/出来事"）
 
-import type { FeatureMsg } from '../features/registry';
 import type { Handle } from '../model/geometry';
 import type { Deck } from '../model/types';
 import type { Box, Point } from './model';
@@ -46,4 +45,16 @@ export type CoreMsg =
   | { type: 'Undo' }
   | { type: 'Redo' };
 
-export type Msg = CoreMsg | FeatureMsg;
+/**
+ * プラグインの Msg の共通形。type が "プラグイン名/出来事"（例: 'shapes/Inserted'）。
+ *
+ * プラグインは実行時に後から入るので、ここでは「/ を含む type を持つ何か」としか書けない。
+ * そのため土台の update はプラグインの Msg を網羅チェックできない（プラグインの中では、
+ * 自分の Msg の型で網羅チェックできる）。
+ *
+ * 各プラグインは自分の Msg を `type`（interface ではなく）で書く。type で書いた型だけが、
+ * 下の [key: string]: unknown に当てはまるため。
+ */
+export type PluginMsg = { type: `${string}/${string}`; [key: string]: unknown };
+
+export type Msg = CoreMsg | PluginMsg;

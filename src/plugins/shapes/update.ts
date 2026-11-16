@@ -1,9 +1,7 @@
 // 図形・テキストボックスの挿入（純粋な関数の部分）。
 
-import { currentSlide, edit, isBusy, withNewIds } from '../../app/helpers';
-import type { Model } from '../../app/model';
-import { insertElement } from '../../model/commands';
-import type { SlideElement } from '../../model/types';
+// プラグインは plugin-api だけを使う（アプリの内部を直接 import しない）。
+import { currentSlide, edit, insertElement, isBusy, withNewIds, type Model, type SlideElement } from '../../plugin-api';
 
 export type ShapeKind = 'text' | 'rect' | 'ellipse' | 'arrow';
 

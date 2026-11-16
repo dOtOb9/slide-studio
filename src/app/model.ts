@@ -59,6 +59,13 @@ export interface Model {
   boxes: Box[];
   gesture: Gesture | null;
   history: History;
+  /**
+   * 各プラグイン自身の状態。キーはプラグイン名で、中身はそのプラグインだけが読み書きする
+   * （helpers.ts の getPluginState / setPluginState を使う）。
+   * 保存はせず、元に戻す・やり直しの対象にもならない（履歴に積むのは Deck だけ）。
+   * 別のファイルを開いても消さない（ファイルの中身ではなく、操作をまたいで覚える値のため）
+   */
+  plugins: Record<string, unknown>;
 }
 
 /**
@@ -90,5 +97,6 @@ export function initModel(deck: Deck, fileName: string): Model {
     boxes: [],
     gesture: null,
     history: { past: [], future: [] },
+    plugins: {},
   };
 }

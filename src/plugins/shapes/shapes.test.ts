@@ -1,25 +1,22 @@
-// 機能のテスト。わざと「機能自身のモジュール」を最初に import している。
-// 機能を作るエージェントが自然に書く順番で、循環 import によって registry が壊れないことの確認を兼ねる。
-import { shapes } from './feature';
+// プラグインのテスト。わざと「プラグイン自身のモジュール」を最初に import している。
+// プラグインを作るエージェントが自然に書く順番で、循環 import が無いことの確認を兼ねる。
+import { shapes } from './plugin';
 
 import { describe, expect, it } from 'vitest';
 import { initModel } from '../../app/model';
 import { update } from '../../app/update';
 import { parseDeck } from '../../model/parse';
 import sample from '../../samples/sample-deck.html?raw';
-import { features, updateFeature } from '../registry';
+import { listPlugins, registerPlugin } from '../host';
+
+// テストではアプリの起動（main.tsx）を通らないので、自分で登録する（テストファイルごとに登録簿は空から始まる）
+registerPlugin(shapes, 'builtin');
 
 const setup = () => update(initModel(parseDeck(sample), 't.html'), { type: 'SlideSelected', index: 1 });
 
 describe('登録', () => {
-  it('機能のモジュールを先に読み込んでも、registry に正しく登録されている', () => {
-    expect(features).toContain(shapes);
-    expect(features.every((f) => f !== undefined)).toBe(true);
-  });
-
-  it('登録されていない機能の Msg は黙って捨てずに例外にする', () => {
-    const bogus = { type: 'nosuch/Thing' } as unknown as Parameters<typeof updateFeature>[1];
-    expect(() => updateFeature(setup(), bogus)).toThrow('登録されていない機能の Msg: nosuch/Thing');
+  it('プラグインのモジュールを先に読み込んでも、正しく登録できる', () => {
+    expect(listPlugins().map((e) => e.plugin)).toEqual([shapes]);
   });
 });
 

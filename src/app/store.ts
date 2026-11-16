@@ -8,6 +8,7 @@
 
 import { create } from 'zustand';
 import { parseDeck } from '../model/parse';
+import type { PluginContext } from '../plugin-api';
 import sample from '../samples/sample-deck.html?raw';
 import { initModel, type Model } from './model';
 import type { Msg } from './msg';
@@ -33,3 +34,11 @@ export const useDispatch = () => useStore((s) => s.dispatch);
 
 /** イベントハンドラの中など、描画の外で最新の Model を読むとき用 */
 export const getModel = () => useStore.getState().model;
+
+/** プラグインの部品に渡す窓口（plugin-api の PluginContext）。部品は store を直接 import しない */
+export const pluginContext: PluginContext = {
+  getModel,
+  dispatch: (msg) => useStore.getState().dispatch(msg),
+  // zustand は (新しい状態, 前の状態) を渡してくるが、部品には「変わった」ことだけを伝える
+  subscribe: (listener) => useStore.subscribe(() => listener()),
+};

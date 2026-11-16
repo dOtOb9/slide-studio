@@ -2,7 +2,6 @@
 // update(model, msg) は「今の Model と起きた出来事から、次の Model を返す」純粋な関数。
 // DOM にも React にも触らないので、Msg を順に流すだけでテストできる。
 
-import { featureKey, isFeatureMsg, updateFeature } from '../features/registry';
 import {
   addSlide,
   deleteElement,
@@ -15,6 +14,7 @@ import {
 } from '../model/commands';
 import { resizeRect } from '../model/geometry';
 import type { Deck } from '../model/types';
+import { isPluginMsg, pluginKey, updatePlugin } from '../plugins/host';
 import {
   clampSlide,
   currentSlideId,
@@ -32,12 +32,13 @@ import type { KeyInput, Msg } from './msg';
 const DRAG_THRESHOLD = 4; // これ未満の移動（スライド px）はクリックとみなす
 
 export function update(model: Model, msg: Msg): Model {
-  // 各機能（features/）の Msg は "機能名/出来事" という type を持つ。その機能の update に任せる
-  if (isFeatureMsg(msg)) return updateFeature(model, msg);
+  // 各プラグイン（plugins/）の Msg は "プラグイン名/出来事" という type を持つ。そのプラグインの update に任せる
+  if (isPluginMsg(msg)) return updatePlugin(model, msg);
 
   switch (msg.type) {
     case 'DeckLoaded':
-      return initModel(msg.deck, msg.fileName);
+      // プラグイン自身の状態は、ファイルの中身ではないので引き継ぐ
+      return { ...initModel(msg.deck, msg.fileName), plugins: model.plugins };
 
     case 'DeckSaved':
       // 保存中に編集が続いていても正しく判定できるよう、「保存した時点の」Deck を覚える
@@ -166,8 +167,8 @@ export function update(model: Model, msg: Msg): Model {
     case 'KeyPressed': {
       // テキスト編集中のキーは文字入力に、ドラッグ中のキーは無視
       if (model.editingId || model.gesture) return model;
-      // まず共通のキー操作。扱わなかったキーは各機能に回す
-      return coreKey(model, msg) ?? featureKey(model, msg, update) ?? model;
+      // まず共通のキー操作。扱わなかったキーは各プラグインに回す
+      return coreKey(model, msg) ?? pluginKey(model, msg, update) ?? model;
     }
 
     case 'BoxesMeasured':
@@ -187,7 +188,7 @@ export function update(model: Model, msg: Msg): Model {
 
 // --- キー操作 ---------------------------------------------------------------
 
-/** 共通のキー操作。扱わないキーなら null を返す（各機能に回すため） */
+/** 共通のキー操作。扱わないキーなら null を返す（各プラグインに回すため） */
 function coreKey(model: Model, { key, shift, mod }: KeyInput): Model | null {
   const k = key.toLowerCase();
   if (mod && k === 'z') return shift ? redo(model) : undo(model);

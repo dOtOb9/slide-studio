@@ -1,5 +1,5 @@
-// update と各機能（features/）が共通で使う、Model を扱う小さな道具。
-// どれも純粋な関数。
+// update と各プラグイン（plugins/）が共通で使う、Model を扱う小さな道具。
+// どれも純粋な関数。プラグインには plugin-api/ を通して公開している。
 
 import type { Deck, SlideElement } from '../model/types';
 import type { Model } from './model';
@@ -54,6 +54,17 @@ export function findElement(model: Model, id: string) {
  */
 export function isTextEditable(el: SlideElement): boolean {
   return el.tag !== 'img' && el.tag !== 'svg';
+}
+
+/** プラグイン自身の状態を読む（まだ書いていなければ undefined） */
+export function getPluginState<T>(model: Model, name: string): T | undefined {
+  return model.plugins[name] as T | undefined;
+}
+
+/** プラグイン自身の状態を書く。同じ値なら Model をそのまま返す */
+export function setPluginState<T>(model: Model, name: string, state: T): Model {
+  if (model.plugins[name] === state) return model;
+  return { ...model, plugins: { ...model.plugins, [name]: state } };
 }
 
 export function clampSlide(deck: Deck, index: number): number {

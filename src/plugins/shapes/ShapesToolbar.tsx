@@ -1,7 +1,7 @@
-// ツールバーの「挿入」ボタン群（view）。features/toolbar.ts に登録する。
-// store は import せず、Model と dispatch を props で受け取る（types.ts の FeatureViewProps）。
+// ツールバーの「挿入」ボタン群（view）。plugin.ts で reactView に包んでツールバーに置く。
+// store は import せず、Model と dispatch を props で受け取る（plugin-api/react.tsx の PluginViewProps）。
 
-import type { FeatureViewProps } from '../types';
+import type { PluginViewProps } from '../../plugin-api/react';
 import type { ShapeKind } from './update';
 
 const BUTTONS: { shape: ShapeKind; label: string; title: string }[] = [
@@ -11,7 +11,7 @@ const BUTTONS: { shape: ShapeKind; label: string; title: string }[] = [
   { shape: 'arrow', label: '→ 矢印', title: '矢印を挿入' },
 ];
 
-export function ShapesToolbar({ model, dispatch }: FeatureViewProps) {
+export function ShapesToolbar({ model, dispatch }: PluginViewProps) {
   const hasSlide = model.deck.slides.length > 0;
   return (
     <>
