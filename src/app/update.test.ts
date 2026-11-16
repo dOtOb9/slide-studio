@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { parseDeck } from '../model/parse';
 import { resolveRect } from '../model/render';
 import sample from '../samples/sample-deck.html?raw';
-import { initModel, type Box, type Model } from './model';
+import { initModel, isDirty, type Box, type Model } from './model';
 import type { Msg } from './msg';
 import { update } from './update';
 
@@ -255,5 +255,82 @@ describe('スライドが 0 枚', () => {
       { type: 'Undo' },
     );
     expect(m.current).toBe(0);
+  });
+});
+
+describe('スライドの操作', () => {
+  const ids = (m: Model) => m.deck.slides.map((s) => s.id);
+
+  it('追加すると、新しいスライドを表示し、1回の Undo で消える', () => {
+    const m0 = setup(); // 3枚目を表示中
+    const m = update(m0, { type: 'SlideAdded', after: 2, layout: 'title-body' });
+    expect(m.deck.slides).toHaveLength(5);
+    expect(m.current).toBe(3);
+    expect(m.deck.slides[3].elements.map((e) => e.id)).toEqual(['n2', 'n3']); // n1 はスライド自身
+    expect(m.nextId).toBe(4);
+    expect(update(m, { type: 'Undo' }).deck).toBe(m0.deck);
+  });
+
+  it('複製・削除・並べ替えのあとも、表示中のスライドが自然な位置にある', () => {
+    const m0 = setup(); // current = 2
+    expect(update(m0, { type: 'SlideDuplicated', index: 2 }).current).toBe(3);
+    expect(update(m0, { type: 'SlideDeleted', index: 0 }).current).toBe(1); // 前を消したら1つずれる
+    expect(update(m0, { type: 'SlideDeleted', index: 2 }).current).toBe(2); // 自分を消したら次のスライド
+    const moved = update(m0, { type: 'SlideMoved', from: 2, to: 0 });
+    expect(ids(moved)[0]).toBe(ids(m0)[2]);
+    expect(moved.current).toBe(0);
+  });
+
+  it('最後の1枚を消しても落ちない', () => {
+    let m = setup();
+    for (let i = 0; i < 4; i++) m = update(m, { type: 'SlideDeleted', index: 0 });
+    expect(m.deck.slides).toHaveLength(0);
+    expect(m.current).toBe(0);
+    expect(update(m, { type: 'Undo' }).deck.slides).toHaveLength(1);
+  });
+
+  it('Ctrl+M は表示中と同じレイアウト、表紙からなら2番目のレイアウトで追加する', () => {
+    const m0 = setup(); // title-body を表示中
+    const key = { type: 'KeyPressed', key: 'm', shift: false, mod: true } as const;
+    expect(update(m0, key).deck.slides[3].layout).toBe('title-body');
+    const onCover = update(m0, { type: 'SlideSelected', index: 0 });
+    expect(update(onCover, key).deck.slides[1].layout).toBe('title-body');
+  });
+
+  it('Ctrl+D は要素を選んでいなければスライドを複製する', () => {
+    const m0 = setup();
+    const key = { type: 'KeyPressed', key: 'd', shift: false, mod: true } as const;
+    expect(update(m0, key).deck.slides).toHaveLength(5);
+    expect(update(update(m0, { type: 'ElementSelected', id: el(m0, 0).id }), key).deck).toBe(m0.deck);
+  });
+
+  it('ドラッグ中・編集中はスライドを増減しない', () => {
+    const m0 = setup();
+    const editing = update(m0, { type: 'EditRequested', id: el(m0, 0).id });
+    expect(update(editing, { type: 'SlideDeleted', index: 0 })).toBe(editing);
+  });
+});
+
+describe('保存状態', () => {
+  it('編集すると未保存、保存すると解消、保存時点まで戻しても解消', () => {
+    const m0 = setup();
+    expect(isDirty(m0)).toBe(false);
+    const edited = run(m0, { type: 'ElementSelected', id: el(m0, 2).id }, { type: 'KeyPressed', key: 'ArrowRight', shift: false, mod: false });
+    expect(isDirty(edited)).toBe(true);
+    const saved = update(edited, { type: 'DeckSaved', deck: edited.deck, fileName: 'saved.html' });
+    expect(isDirty(saved)).toBe(false);
+    expect(saved.fileName).toBe('saved.html');
+    // 保存の後に戻すと、保存した内容とは違うので未保存
+    expect(isDirty(update(saved, { type: 'Undo' }))).toBe(true);
+    // 開いた直後の状態まで戻すと（保存していなければ）未保存でない
+    expect(isDirty(update(edited, { type: 'Undo' }))).toBe(false);
+  });
+
+  it('保存中に編集が続いた場合は、保存した時点の Deck を基準にする', () => {
+    const m0 = setup();
+    const a = run(m0, { type: 'ElementSelected', id: el(m0, 2).id }, { type: 'KeyPressed', key: 'ArrowRight', shift: false, mod: false });
+    const b = update(a, { type: 'KeyPressed', key: 'ArrowLeft', shift: false, mod: false }); // 保存の書き込み中に編集
+    const saved = update(b, { type: 'DeckSaved', deck: a.deck, fileName: 'x.html' });
+    expect(isDirty(saved)).toBe(true);
   });
 });

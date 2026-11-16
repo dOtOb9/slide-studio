@@ -2,10 +2,18 @@
 // update(model, msg) は「今の Model と起きた出来事から、次の Model を返す」純粋な関数。
 // DOM にも React にも触らないので、Msg を順に流すだけでテストできる。
 
-import { deleteElement, updateElement, type ElementPatch } from '../model/commands';
+import {
+  addSlide,
+  deleteElement,
+  deleteSlide,
+  duplicateSlide,
+  moveSlide,
+  updateElement,
+  type ElementPatch,
+} from '../model/commands';
 import { resizeRect } from '../model/geometry';
 import type { Deck } from '../model/types';
-import { initModel, type Model } from './model';
+import { defaultNewLayout, initModel, type Model } from './model';
 import type { Msg } from './msg';
 
 const HISTORY_LIMIT = 100; // 元に戻せる回数の上限
@@ -16,16 +24,43 @@ export function update(model: Model, msg: Msg): Model {
     case 'DeckLoaded':
       return initModel(msg.deck, msg.fileName);
 
+    case 'DeckSaved':
+      // 保存中に編集が続いていても正しく判定できるよう、「保存した時点の」Deck を覚える
+      return { ...model, savedDeck: msg.deck, fileName: msg.fileName };
+
     case 'SlideSelected':
       // ドラッグ中に切り替えると、途中まで動かした分が履歴に残らなくなるので無視する
       if (model.gesture) return model;
-      return {
-        ...model,
-        current: clampSlide(model.deck, msg.index),
-        selectedId: null,
-        editingId: null,
-        gesture: null,
-      };
+      return showSlide(model, msg.index);
+
+    case 'SlideAdded': {
+      if (isBusy(model)) return model;
+      const { deck, nextId } = withNewIds(model, (newId) => addSlide(model.deck, msg.after, msg.layout, newId));
+      return showSlide({ ...edit(model, deck), nextId }, msg.after + 1);
+    }
+
+    case 'SlideDuplicated': {
+      if (isBusy(model)) return model;
+      const { deck, nextId } = withNewIds(model, (newId) => duplicateSlide(model.deck, msg.index, newId));
+      if (deck === model.deck) return model;
+      return showSlide({ ...edit(model, deck), nextId }, msg.index + 1);
+    }
+
+    case 'SlideDeleted': {
+      if (isBusy(model)) return model;
+      const deck = deleteSlide(model.deck, msg.index);
+      if (deck === model.deck) return model;
+      // 表示中より前を消したら、表示中のスライドは1つ前にずれる
+      return showSlide(edit(model, deck), msg.index < model.current ? model.current - 1 : model.current);
+    }
+
+    case 'SlideMoved': {
+      if (isBusy(model)) return model;
+      const deck = moveSlide(model.deck, msg.from, msg.to);
+      if (deck === model.deck) return model;
+      // 並べ替えた後も、動かしたスライドを表示する
+      return showSlide(edit(model, deck), msg.to);
+    }
 
     case 'ElementSelected':
       return { ...model, selectedId: msg.id };
@@ -115,8 +150,13 @@ function onKey(model: Model, { key, shift, mod }: { key: string; shift: boolean;
   // テキスト編集中のキーは文字入力に、ドラッグ中のキーは無視
   if (model.editingId || model.gesture) return model;
 
-  if (mod && key.toLowerCase() === 'z') return shift ? redo(model) : undo(model);
-  if (mod && key.toLowerCase() === 'y') return redo(model);
+  const k = key.toLowerCase();
+  if (mod && k === 'z') return shift ? redo(model) : undo(model);
+  if (mod && k === 'y') return redo(model);
+  // Ctrl+M: 新しいスライド（PowerPoint と同じ）
+  if (mod && k === 'm') return update(model, { type: 'SlideAdded', after: model.current, layout: defaultNewLayout(model) });
+  // Ctrl+D: 要素を選んでいなければスライドの複製
+  if (mod && k === 'd' && !model.selectedId) return update(model, { type: 'SlideDuplicated', index: model.current });
 
   const el = model.selectedId ? findElement(model, model.selectedId) : undefined;
   if (el) {
@@ -193,6 +233,23 @@ function restore(model: Model, deck: Deck, history: Model['history']): Model {
 }
 
 // --- 小さな道具 ---------------------------------------------------------------
+
+/** ドラッグ中・テキスト編集中は、スライドの増減など大きな操作を受け付けない */
+function isBusy(model: Model): boolean {
+  return model.gesture !== null || model.editingId !== null;
+}
+
+/** 表示するスライドを切り替え、選択と編集は解除する */
+function showSlide(model: Model, index: number): Model {
+  return { ...model, current: clampSlide(model.deck, index), selectedId: null, editingId: null, gesture: null };
+}
+
+/** 新しい id（"n1", "n2", ...）を作りながら Deck を作り、使った分だけ連番を進める */
+function withNewIds(model: Model, fn: (newId: () => string) => Deck): { deck: Deck; nextId: number } {
+  let n = model.nextId;
+  const deck = fn(() => `n${n++}`);
+  return { deck, nextId: n };
+}
 
 function currentSlideId(model: Model): string {
   return model.deck.slides[model.current].id;

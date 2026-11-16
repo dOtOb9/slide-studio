@@ -41,6 +41,13 @@ export interface History {
 export interface Model {
   deck: Deck;
   fileName: string;
+  /**
+   * 最後に保存した（または開いた）時点の Deck。
+   * deck !== savedDeck なら未保存の変更がある。元に戻すで保存時点まで戻れば、参照が一致して未保存でなくなる
+   */
+  savedDeck: Deck;
+  /** 新しいスライド・要素の id に使う連番（"n1", "n2", ...）。読み込んだファイルの id（e1, s1 …）とは重ならない */
+  nextId: number;
   current: number; // 表示中のスライド番号（0 始まり）
   selectedId: string | null; // 選択中の要素
   editingId: string | null; // テキスト編集中の要素
@@ -54,10 +61,27 @@ export interface Model {
   history: History;
 }
 
+/**
+ * 新しいスライドに使うレイアウト。基本は表示中のスライドと同じ。
+ * ただし表示中が最初のレイアウト（ふつうは表紙）なら、2番目のレイアウト（ふつうはタイトルと本文）にする
+ */
+export function defaultNewLayout(model: Model): string {
+  const { layouts, slides } = model.deck;
+  const current = slides[model.current]?.layout;
+  if (layouts.length === 0) return current ?? 'blank';
+  if (!current || (current === layouts[0].name && layouts.length > 1)) return layouts[Math.min(1, layouts.length - 1)].name;
+  return current;
+}
+
+/** 未保存の変更があるか */
+export const isDirty = (model: Model) => model.deck !== model.savedDeck;
+
 export function initModel(deck: Deck, fileName: string): Model {
   return {
     deck,
     fileName,
+    savedDeck: deck,
+    nextId: 1,
     current: 0,
     selectedId: null,
     editingId: null,

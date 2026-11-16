@@ -8,10 +8,16 @@ import type { Deck } from '../model/types';
 import type { Box, Point } from './model';
 
 export type Msg =
-  // ファイル
+  // ファイル（読み書き自体は io/ で行い、終わった結果だけを送る）
   | { type: 'DeckLoaded'; deck: Deck; fileName: string }
-  // 選択
+  | { type: 'DeckSaved'; deck: Deck; fileName: string } // deck は「保存した時点の」Deck
+  // スライドの操作
   | { type: 'SlideSelected'; index: number }
+  | { type: 'SlideAdded'; after: number; layout: string }
+  | { type: 'SlideDuplicated'; index: number }
+  | { type: 'SlideDeleted'; index: number }
+  | { type: 'SlideMoved'; from: number; to: number }
+  // 要素の選択
   | { type: 'ElementSelected'; id: string | null }
   // ドラッグ（移動・リサイズ）。pointer はスライド座標
   | { type: 'DragStarted'; id: string; handle: Handle | null; pointer: Point }
