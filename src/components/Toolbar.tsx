@@ -2,7 +2,7 @@
 
 import { isDirty } from '../app/model';
 import { useDispatch, useModel } from '../app/store';
-import { features } from '../features/registry';
+import { toolbarSections } from '../features/toolbar';
 import { openDeck, saveDeck } from '../io/commands';
 
 export function Toolbar() {
@@ -13,6 +13,8 @@ export function Toolbar() {
   const layouts = useModel((m) => m.deck.layouts);
   const current = useModel((m) => m.current);
   const hasSlide = useModel((m) => m.deck.slides.length > 0);
+  // 機能の部品に渡す Model 全体。Model が変わるたびにツールバーも描き直すが、部品は小さいので問題ない
+  const model = useModel((m) => m);
   const dispatch = useDispatch();
 
   return (
@@ -71,17 +73,12 @@ export function Toolbar() {
         </button>
       </div>
 
-      {/* 各機能（features/）の部品 */}
-      {features.map((f) => {
-        const Section = f.ToolbarSection;
-        return (
-          Section && (
-            <div className="group" key={f.name}>
-              <Section />
-            </div>
-          )
-        );
-      })}
+      {/* 各機能（features/）の部品。Model と dispatch を渡す */}
+      {toolbarSections.map(({ name, View }) => (
+        <div className="group" key={name}>
+          <View model={model} dispatch={dispatch} />
+        </div>
+      ))}
 
       <span className="filename">
         {fileName}
