@@ -12,16 +12,19 @@ body {
 .app {
   display: grid;
   grid-template-columns: 220px 1fr;
-  grid-template-rows: 44px 1fr;
+  grid-template-rows: auto 1fr; /* ツールバーは、プラグインが増えて折り返したら高くなる */
+  min-height: 0;
   height: 100%;
 }
 
 .toolbar {
   grid-column: 1 / -1;
   display: flex;
+  flex-wrap: wrap; /* 入りきらないボタンは次の行へ */
   align-items: center;
-  gap: 12px;
-  padding: 0 12px;
+  gap: 6px 12px;
+  min-height: 44px;
+  padding: 6px 12px;
   background: #fff;
   border-bottom: 1px solid #d0d5db;
 }
@@ -32,15 +35,45 @@ body {
   border-radius: 6px;
   background: #f8f9fa;
   cursor: pointer;
+  white-space: nowrap; /* ツールバーが混んでも、ラベルの途中で折り返さない */
 }
 .button:hover { background: #eef1f4; }
 button.button { font: inherit; color: inherit; }
 .button:disabled { opacity: .4; cursor: default; }
 
-.filename { color: #616e7c; margin-left: auto; }
+/* 狭いときはファイル名のほうを縮めて「…」で省く */
+.filename { color: #616e7c; margin-left: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dirty { color: #e67700; }
 .toolbar .group { display: flex; gap: 4px; padding-right: 12px; border-right: 1px solid #e4e7eb; }
 select.button { font: inherit; color: inherit; }
+
+/* プラグインの一覧（ツールバーから開くパネル）。
+   ボタンは折り返しでどこにでも来うるので、ボタンではなくツールバーの右下に出す（画面からはみ出さないように） */
+.toolbar { position: relative; }
+.plugin-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 12px;
+  max-width: calc(100vw - 24px);
+  z-index: 10;
+  width: 400px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #c3c9d0;
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / .15);
+}
+.plugin-panel-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.plugin-close { margin-left: auto; border: none; background: none; font-size: 18px; cursor: pointer; color: #616e7c; }
+.plugin-muted { color: #7b8794; font-size: 12px; }
+.plugin-list { list-style: none; margin: 0 0 12px; padding: 0; }
+.plugin-list li { display: flex; align-items: flex-start; gap: 8px; padding: 6px 0; border-bottom: 1px solid #f0f2f4; }
+.plugin-list label { display: flex; align-items: flex-start; gap: 8px; flex: 1; cursor: pointer; }
+.plugin-description { display: block; color: #616e7c; font-size: 12px; }
+.plugin-load { display: flex; flex-direction: column; gap: 6px; }
+.plugin-load form { display: flex; gap: 4px; }
+.plugin-load input { flex: 1; min-width: 0; padding: 4px 8px; border: 1px solid #c3c9d0; border-radius: 6px; font: inherit; }
+.plugin-warning { margin: 10px 0 0; color: #8a5a00; font-size: 12px; }
 
 .thumbs {
   overflow-y: auto;

@@ -4,6 +4,7 @@ import { isDirty } from '../app/model';
 import { useDispatch, useModel } from '../app/store';
 import { usePlugins } from '../hooks/usePlugins';
 import { openDeck, saveDeck } from '../io/commands';
+import { PluginManager } from './PluginManager';
 import { PluginSlot } from './PluginSlot';
 
 export function Toolbar() {
@@ -78,6 +79,8 @@ export function Toolbar() {
         ({ plugin, enabled }) =>
           enabled && plugin.toolbar && <PluginSlot key={plugin.name} name={plugin.name} view={plugin.toolbar} />,
       )}
+
+      <PluginManager />
 
       <span className="filename">
         {fileName}
