@@ -34,6 +34,8 @@ body {
   cursor: pointer;
 }
 .button:hover { background: #eef1f4; }
+button.button { font: inherit; color: inherit; }
+.button:disabled { opacity: .4; cursor: default; }
 
 .filename { color: #616e7c; }
 
