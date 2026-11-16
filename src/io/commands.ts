@@ -5,11 +5,10 @@
 import { isDirty } from '../app/model';
 import type { Msg } from '../app/msg';
 import { getModel, useStore } from '../app/store';
-import { missingImagePaths, usedImagePaths } from '../model/images';
+import { imagesToWrite, missingImagePaths } from '../model/images';
 import { parseDeck } from '../model/parse';
-import { serializeDeck } from '../model/serialize';
 import { canWriteImageFiles, openFile, readImageFiles, requestFolder, saveFile } from './file';
-import { embedSrc } from './images';
+import { deckHtml } from './images';
 
 const dispatch = (msg: Msg) => useStore.getState().dispatch(msg);
 
@@ -55,18 +54,11 @@ async function loadMissingImages(): Promise<string[]> {
 export async function saveDeck(saveAs = false) {
   // 書き込みには時間がかかり、その間に編集が続くこともあるので、保存する Deck をここで確定させる
   const { deck, fileName, images } = getModel();
-  const used = usedImagePaths(deck);
   try {
-    let html: string;
-    const toWrite: Record<string, Blob> = {};
-    if (canWriteImageFiles) {
-      // 中身を持っている画像を images/ に書く。持っていない画像（フォルダを許可していない等）は参照のまま
-      for (const path of used) if (images[path]) toWrite[path] = images[path];
-      html = serializeDeck(deck);
-    } else {
-      // フォルダに書けないブラウザ: 画像を data URI で埋め込んだ1ファイルにする
-      html = serializeDeck(deck, await embedSrc(used, images));
-    }
+    // 中身を持っている画像を images/ に書く。持っていない画像（フォルダを許可していない等）は参照のまま。
+    // フォルダに書けないブラウザでは、画像を data URI で埋め込んだ1ファイルにする
+    const html = await deckHtml(deck, images, canWriteImageFiles);
+    const toWrite = canWriteImageFiles ? imagesToWrite(deck, images) : {};
     const saved = await saveFile(html, fileName, saveAs, toWrite);
     if (saved) dispatch({ type: 'DeckSaved', deck, fileName: saved.name, canReadFolder: saved.canReadFolder });
   } catch (e) {

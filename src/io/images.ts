@@ -2,8 +2,9 @@
 // ハッシュの計算・表示用の Blob URL・埋め込み用の data URI。どれも Model は変えない。
 // パスの判定などの純粋な部分は model/images.ts にある。
 
-import { imagePath, mimeTypeOf } from '../model/images';
-import type { ResolveSrc } from '../model/serialize';
+import { imagePath, imagesToWrite, mimeTypeOf } from '../model/images';
+import { serializeDeck, type ResolveSrc } from '../model/serialize';
+import type { Deck } from '../model/types';
 
 /** Blob の中身の SHA-256 を16進の文字列（64文字）で返す */
 export async function sha256Hex(blob: Blob): Promise<string> {
@@ -59,14 +60,24 @@ function toDataUri(blob: Blob, fallbackType: string): Promise<string> {
 }
 
 /**
- * 埋め込み用の src の解決方法（serializeDeck に渡す）。使っている画像だけを先に data URI にしておく。
- * 中身を持っていない画像は参照（images/...）のまま残す
+ * 埋め込み用の src の解決方法（serializeDeck に渡す）。渡された画像を先に data URI にしておく。
+ * ここに無い画像は参照（images/...）のまま残す
  */
-export async function embedSrc(paths: string[], images: Record<string, Blob>): Promise<ResolveSrc> {
+export async function embedSrc(images: Record<string, Blob>): Promise<ResolveSrc> {
   const uris: Record<string, string> = {};
-  for (const path of paths) {
-    const blob = images[path];
-    if (blob) uris[path] = await toDataUri(blob, mimeTypeOf(path) ?? 'application/octet-stream');
+  for (const [path, blob] of Object.entries(images)) {
+    uris[path] = await toDataUri(blob, mimeTypeOf(path) ?? 'application/octet-stream');
   }
   return (path) => uris[path] ?? path;
+}
+
+/**
+ * 保存する deck.html の中身。
+ *   inFolder = true  … 画像は images/ に別に書くので、src はパスのまま
+ *   inFolder = false … images/ に書けないので、使っている画像（中身のあるもの）を data URI で埋め込む。
+ *                      中身の無い画像は参照のまま
+ */
+export async function deckHtml(deck: Deck, images: Record<string, Blob>, inFolder: boolean): Promise<string> {
+  if (inFolder) return serializeDeck(deck);
+  return serializeDeck(deck, await embedSrc(imagesToWrite(deck, images)));
 }

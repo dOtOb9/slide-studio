@@ -74,6 +74,18 @@ export function missingImagePaths(deck: Deck, images: Record<string, Blob>): str
   return usedImagePaths(deck).filter((path) => !Object.prototype.hasOwnProperty.call(images, path));
 }
 
+/**
+ * 保存するときに中身を書き出す画像（images/ に書く、またはフォルダに書けないときに埋め込む）。
+ * 使っている画像のうち、中身を持っているものだけ。使っていない画像・中身の無い画像（参照のまま残す）は含まない
+ */
+export function imagesToWrite(deck: Deck, images: Record<string, Blob>): Record<string, Blob> {
+  const out: Record<string, Blob> = {};
+  for (const path of usedImagePaths(deck)) {
+    if (Object.prototype.hasOwnProperty.call(images, path)) out[path] = images[path];
+  }
+  return out;
+}
+
 // --- 外から来る値 -------------------------------------------------------------
 
 /**

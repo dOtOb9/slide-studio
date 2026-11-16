@@ -4,6 +4,7 @@ import {
   checkImageFile,
   extensionOf,
   imagePath,
+  imagesToWrite,
   isImagePath,
   MAX_IMAGE_BYTES,
   mimeTypeOf,
@@ -214,5 +215,19 @@ describe('images/ の画像とファイル形式', () => {
 
   it('resolveSrc を省略すると、src はそのまま', () => {
     expect(renderSlideHtml(deck, deck.slides[0])).toContain(`src="images/${HASH}.png"`);
+  });
+});
+
+describe('imagesToWrite（保存で中身を書き出す画像。Step 8 audit-1 #2）', () => {
+  it('使っている画像のうち中身のあるものだけ。使っていない画像・中身の無い画像は含まない', () => {
+    const A = `images/${'a'.repeat(64)}.png`;
+    const B = `images/${'b'.repeat(64)}.png`;
+    const C = `images/${'c'.repeat(64)}.png`;
+    const deck = parseDeck(`<body><section><img data-el src="${A}"><img data-el src="${B}"><img data-el src="${A}"></section></body>`);
+    const a = new Blob(['a']);
+    const c = new Blob(['c']);
+    const out = imagesToWrite(deck, { [A]: a, [C]: c }); // B は中身が無い、C は使っていない
+    expect(Object.keys(out)).toEqual([A]);
+    expect(out[A]).toBe(a);
   });
 });
