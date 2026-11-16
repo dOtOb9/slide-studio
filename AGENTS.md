@@ -27,17 +27,36 @@ GUI の挙動を変えたときは、実ブラウザでも確認する（後述�
 
 ## アーキテクチャの約束
 
+Elm の TEA（The Elm Architecture）に沿う。
+
 ```
-deck.html ─parse─▶ Deck（store）─render─▶ 画面（Shadow DOM）
-                       └─serialize─▶ deck.html
+            ┌──────── Msg ◀──── view（components/）・Sub（hooks/）
+            ▼
+update(model, msg) ─▶ Model ─▶ view が描画 ─▶ SlideView が renderSlideHtml で Shadow DOM に描く
+  （app/update.ts）    （app/model.ts）
+
+deck.html ─parse─▶ Deck（Model の一部）─serialize─▶ deck.html
 ```
 
-1. **`src/model/` は React に依存しない純粋な TypeScript。** 計算・変換・編集ロジックはここに置き、単体テストを書く。
-2. **編集は `model/commands.ts` の関数で行い、古い Deck を書き換えずに新しい Deck を返す（イミュータブル）。** undo はこれを前提にする。
-3. **正本は store の Deck だけ。** UI は操作を store に書き込み、描画は store から導く。DOM を直接書き換えて状態を持たない（例外: テキスト編集中の contentEditable。確定時に store へ書き戻す）。
-4. **スライドの見た目は `renderSlideHtml` だけが作る。** 画面・サムネイル・書き出しで同じ関数を使い、見た目を一致させる。
-5. **読み込み→書き出し→読み込み で内容が変わらないこと**（ラウンドトリップ）。ファイル形式に触れる変更では必ずテストする。
-6. ライブラリは「自前で書くと難しく、かつ store 中心の流れを壊さないもの」に限る（例: react-moveable は対象要素を自分で書き換える前提で相性が悪く、Step 2 で外した）。
+| 層 | 置き場所 | 中身 |
+|---|---|---|
+| Model | `app/model.ts` | 保存するもの（Deck）、履歴、操作の状態（選択・ドラッグ・編集）、測った要素位置 |
+| Msg | `app/msg.ts` | 起こりうる出来事の一覧（判別可能な共用体） |
+| update | `app/update.ts` | `(Model, Msg) → Model` の純粋関数。履歴の積み方もここ |
+| ランタイム | `app/store.ts` | Model を持ち `dispatch(msg)` を受けるだけ。ロジックを書かない |
+| view | `components/` | Model を読んで描画し、Msg を送るだけ |
+| Sub | `hooks/` | DOM の出来事（キー、描画後の位置測定、テキスト確定）を Msg に変える |
+| ドメイン | `model/` | ファイル形式（parse / serialize / render）と Deck の編集・幾何計算 |
+
+1. **`src/model/` と `src/app/` は React に依存しない純粋な TypeScript。** ロジックはここに置き、単体テストを書く。`update` は Msg を順に流すだけでテストできる。
+2. **状態を変える唯一の入口は `dispatch(msg)`。** 新しい操作は「Msg を足す → update に case を足す → view から送る」の順で作る。update の `switch` は網羅チェック（`assertNever`）付きなので、扱い忘れは型エラーになる。
+3. **view に判断を書かない。** 「選択中なら〜」のような分岐は update に置く。view が持ってよいのは、見た目だけの一時状態（画面サイズ、hover）と DOM への参照だけ。
+4. **Deck は書き換えずに新しく作る（イミュータブル）。** 編集は `model/commands.ts` の関数で行う。変更していないスライドは同じオブジェクトのまま共有されるので、履歴は古い Deck を取っておくだけで作れ、「どのスライドが変わったか」も参照の比較でわかる。
+5. **履歴は「ユーザーの1操作 = 1件」。** ドラッグは `DragStarted` 〜 `DragEnded` で1件。Deck を変える Msg を足すときは、update 内で `edit()`（即1件積む）を使うか、ジェスチャーとしてまとめるかを決める。
+6. **例外: テキスト編集中の文字は DOM（contentEditable）が持つ。** 確定時に `TextCommitted` を送る。
+7. **スライドの見た目は `renderSlideHtml` だけが作る。** 画面・サムネイル・書き出しで同じ関数を使い、見た目を一致させる。
+8. **読み込み→書き出し→読み込み で内容が変わらないこと**（ラウンドトリップ）。ファイル形式に触れる変更では必ずテストする。
+9. ライブラリは「自前で書くと難しく、かつ TEA の流れを壊さないもの」に限る（例: react-moveable は対象要素を自分で書き換える前提で相性が悪く、Step 2 で外した）。
 
 ファイル形式の仕様は README.md を参照。
 
