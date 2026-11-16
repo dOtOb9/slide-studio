@@ -139,8 +139,29 @@ export default function myPlugin(api) {   // api: アプリの API（plugin-api 
 | `getPluginState` / `setPluginState` | プラグイン自身の状態（`model.plugins[名前]`。保存せず、元に戻すの対象外） |
 | `version` | アプリの API の版 |
 
+### 部品の見た目（共通のクラスと色）
+
+部品をアプリと同じ見た目にするには、アプリのスタイルにある次のクラスと CSS 変数を使う（API 1.1 から）。
+アプリの UI の方針: 区切りは線でなく背景の色差と余白で表し、ボタンはアイコンにして説明はツールチップ（`title`）に書く。
+
+| クラス | 用途 |
+|---|---|
+| `button.icon-button` | アイコンだけのボタン（32px 四方）。中に SVG（24×24 の viewBox、`stroke="currentColor"`）を入れると 18px で表示され、hover・無効の色に従う。`title` と `aria-label` に説明を書く |
+| `button.button` | 文字のボタン（どうしても文字が要るとき） |
+
+ツールバーの部品は、くぼんだ背景のまとまりの中に置かれる（中のボタンは背景が透明になる）。
+アイコンはアプリと同じ [lucide](https://lucide.dev)（ISC ライセンス）の形を写すとそろう。手本は examples/sticky-note。
+
+| CSS 変数 | 意味 |
+|---|---|
+| `--bg-surface` / `--bg-sunken` / `--bg-app` | 面 / 面の中のくぼみ / 一番下の地 |
+| `--bg-hover` / `--bg-selected` | 乗ったとき / 選んでいるもの |
+| `--fg` / `--fg-muted` / `--accent` | 文字 / 控えめな文字 / 強調 |
+
+クラス名と変数は API の一部として扱う（消す・意味を変えるときは API のメジャーを上げる）。
+
 **版の互換性**: API の版は「メジャー.マイナー」。プラグインの `apiVersion` のメジャーがアプリと同じで、マイナーがアプリ以下なら読み込める。
 型の一覧は [src/plugin-api/index.ts](src/plugin-api/index.ts)。
 
-読み込み: ツールバーの「🧩 プラグイン」→「ファイルから読み込む…」か、URL を入れて「URL から読み込む」
+読み込み: ツールバーのパズルのアイコン（プラグイン）→ ファイルのアイコン（ファイルから読み込む）か、URL を入れて → のアイコン
 （URL の場合は、そのサーバーが CORS を許可している必要がある）。
