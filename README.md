@@ -32,9 +32,13 @@ src/
     parse.ts        HTML → Deck
     serialize.ts    Deck → HTML（保存用）
     render.ts       Slide → 表示用 HTML（位置を解決して絶対配置にする）
+    commands.ts     編集操作（古い Deck → 新しい Deck）
+    geometry.ts     リサイズなどの位置計算
   store.ts        ← アプリの状態（Zustand）
   components/     ← React の画面部品
-    SlideView.tsx   スライドを Shadow DOM 内に縮小表示
+    SlideView.tsx      スライドを Shadow DOM 内に縮小表示
+    EditorCanvas.tsx   選択・移動・テキスト編集
+    SelectionFrame.tsx 選択枠とリサイズ用ハンドル
   App.tsx         ← 画面全体のレイアウト
 ```
 

@@ -1,7 +1,43 @@
 import { useEffect, type ChangeEvent } from 'react';
+import { EditorCanvas } from './components/EditorCanvas';
 import { SlideView } from './components/SlideView';
 import { useElementSize } from './hooks/useElementSize';
+import { resolveRect } from './model/render';
 import { useDeckStore } from './store';
+
+/** キー操作。最新の状態は getState() で読むので、登録は1回だけで済む */
+function onKeyDown(e: KeyboardEvent) {
+  const s = useDeckStore.getState();
+  if (s.editingId) return; // テキスト編集中のキーは文字入力に任せる
+
+  if (s.selectedId) {
+    const slide = s.deck.slides[s.current];
+    const el = slide.elements.find((x) => x.id === s.selectedId);
+    if (!el) return;
+
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      s.deleteElement(el.id);
+    } else if (e.key === 'Escape') {
+      s.selectElement(null);
+    } else if (e.key === 'Enter' && el.tag !== 'img') {
+      e.preventDefault();
+      s.startEditing(el.id);
+    } else if (e.key.startsWith('Arrow')) {
+      // 矢印キーで 1px（Shift で 10px）動かす
+      e.preventDefault();
+      const step = e.shiftKey ? 10 : 1;
+      const { x = 0, y = 0 } = resolveRect(s.deck, slide, el);
+      const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
+      const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
+      s.updateElement(el.id, { rect: { x: x + dx, y: y + dy } });
+    }
+    return;
+  }
+
+  // 何も選択していなければ ↑↓ でスライド移動
+  if (e.key === 'ArrowDown' || e.key === 'PageDown') s.select(s.current + 1);
+  if (e.key === 'ArrowUp' || e.key === 'PageUp') s.select(s.current - 1);
+}
 
 export default function App() {
   const deck = useDeckStore((s) => s.deck);
@@ -9,16 +45,12 @@ export default function App() {
   const current = useDeckStore((s) => s.current);
   const load = useDeckStore((s) => s.load);
   const select = useDeckStore((s) => s.select);
+  const selectElement = useDeckStore((s) => s.selectElement);
 
-  // ↑↓ キーでスライド移動
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowDown' || e.key === 'PageDown') select(current + 1);
-      if (e.key === 'ArrowUp' || e.key === 'PageUp') select(current - 1);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [current, select]);
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   const openFile = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -29,8 +61,6 @@ export default function App() {
   // キャンバス領域に収まる最大の表示幅を計算（余白 48px）
   const [stageRef, stage] = useElementSize<HTMLDivElement>();
   const fitWidth = Math.max(0, Math.min(stage.width - 48, ((stage.height - 48) * deck.width) / deck.height));
-
-  const slide = deck.slides[current];
 
   return (
     <div className="app">
@@ -55,10 +85,15 @@ export default function App() {
         ))}
       </aside>
 
-      <main className="stage" ref={stageRef}>
-        {slide && fitWidth > 0 && (
+      {/* スライドの外側（灰色の部分）をクリックしたら選択解除 */}
+      <main
+        className="stage"
+        ref={stageRef}
+        onPointerDown={(e) => e.target === e.currentTarget && selectElement(null)}
+      >
+        {fitWidth > 0 && (
           <div className="canvas">
-            <SlideView deck={deck} slide={slide} width={fitWidth} />
+            <EditorCanvas width={fitWidth} />
           </div>
         )}
       </main>

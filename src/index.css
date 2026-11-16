@@ -69,3 +69,31 @@ body {
 }
 
 .canvas { box-shadow: 0 2px 12px rgba(0, 0, 0, .15); }
+
+/* ---- 編集キャンバス ---- */
+.editor-canvas { position: relative; }
+
+/* overlay 自体はクリックを素通しし、プロキシとハンドルだけがクリックを受ける */
+.overlay { position: absolute; inset: 0; pointer-events: none; }
+.proxy { position: absolute; pointer-events: auto; cursor: move; }
+.proxy:hover { outline: 1px dashed #3b82f6; }
+
+/* 選択枠。枠自体はクリックを素通しし（下のプロキシで移動できるように）、ハンドルだけが受ける */
+.selection-frame { position: absolute; outline: 1.5px solid #3b82f6; pointer-events: none; }
+.handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px; /* ハンドルの中心を角・辺の中点に合わせる */
+  background: #fff;
+  border: 1.5px solid #3b82f6;
+  border-radius: 2px;
+  pointer-events: auto;
+}
+.handle-nw, .handle-se { cursor: nwse-resize; }
+.handle-ne, .handle-sw { cursor: nesw-resize; }
+.handle-n, .handle-s { cursor: ns-resize; }
+.handle-w, .handle-e { cursor: ew-resize; }
+
+/* テキスト編集中はプロキシを無効にして、本物の要素をクリックできるようにする */
+.overlay.editing .proxy { pointer-events: none; }
