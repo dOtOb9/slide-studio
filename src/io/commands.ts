@@ -11,15 +11,27 @@ import { openFile, saveFile } from './file';
 
 const dispatch = (msg: Msg) => useStore.getState().dispatch(msg);
 
+/** 失敗の理由を知らせる（書き込みを許可しなかった、ダイアログが既に開いている など） */
+const report = (what: string, e: unknown) =>
+  window.alert(`${what}できませんでした: ${e instanceof Error ? e.message : String(e)}`);
+
 export async function openDeck() {
   if (isDirty(getModel()) && !window.confirm('保存していない変更があります。破棄して開きますか？')) return;
-  const result = await openFile();
-  if (result) dispatch({ type: 'DeckLoaded', deck: parseDeck(result.html), fileName: result.name });
+  try {
+    const result = await openFile();
+    if (result) dispatch({ type: 'DeckLoaded', deck: parseDeck(result.html), fileName: result.name });
+  } catch (e) {
+    report('開く', e);
+  }
 }
 
 export async function saveDeck(saveAs = false) {
   // 書き込みには時間がかかり、その間に編集が続くこともあるので、保存する Deck をここで確定させる
   const { deck, fileName } = getModel();
-  const name = await saveFile(serializeDeck(deck), fileName, saveAs);
-  if (name) dispatch({ type: 'DeckSaved', deck, fileName: name });
+  try {
+    const name = await saveFile(serializeDeck(deck), fileName, saveAs);
+    if (name) dispatch({ type: 'DeckSaved', deck, fileName: name });
+  } catch (e) {
+    report('保存', e);
+  }
 }

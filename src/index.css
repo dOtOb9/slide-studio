@@ -92,6 +92,10 @@ select.button { font: inherit; color: inherit; }
   align-items: center;
   justify-content: center;
   outline: 1px dashed #9aa5b1;
+  /* レイアウトに幅・高さが書かれていないと、空の要素は大きさ 0 になりダブルクリックできない。
+     つかみ用の箱にだけ最小の大きさを持たせる（スライド本体・書き出しには影響しない） */
+  min-width: 160px;
+  min-height: 40px;
 }
 .ph-hint { color: #9aa5b1; font-size: 14px; pointer-events: none; user-select: none; }
 
