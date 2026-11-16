@@ -126,7 +126,7 @@ export function updatePlugin(model: Model, msg: PluginMsg): Model {
   }
   const { plugin, enabled } = entry;
   if (!enabled || !plugin.update) return model;
-  const next = guard(plugin, () => plugin.update!(model, msg));
+  const next = callPlugin(plugin, () => plugin.update!(model, msg));
   if (next === undefined) return model;
   if (!looksLikeModel(next)) {
     console.error(`プラグイン ${plugin.name} の update が Model を返しませんでした`);
@@ -149,11 +149,11 @@ function looksLikeModel(value: unknown): value is Model {
 export function pluginKey(model: Model, key: KeyInput, update: (model: Model, msg: Msg) => Model): Model | null {
   for (const { plugin, enabled } of entries) {
     if (!enabled || !plugin.onKey) continue;
-    const msg = guard(plugin, () => plugin.onKey!(model, key));
-    if (!msg) continue;
+    const msg = callPlugin(plugin, () => plugin.onKey!(model, key));
+    if (msg === null || msg === undefined) continue;
     // 返してよいのはプラグインの Msg だけ。土台の KeyPressed などを返されると、
     // update → pluginKey → update … と無限に呼び合ってしまう
-    if (typeof msg.type !== 'string' || !isPluginMsg(msg)) {
+    if (!looksLikeMsg(msg) || !isPluginMsg(msg)) {
       console.error(`プラグイン ${plugin.name} の onKey がプラグインの Msg ではないものを返しました`, msg);
       continue;
     }
@@ -162,8 +162,31 @@ export function pluginKey(model: Model, key: KeyInput, update: (model: Model, ms
   return null;
 }
 
-/** プラグインの関数を呼ぶ。例外が出たらコンソールに出して undefined を返す */
-function guard<T>(plugin: Plugin, fn: () => T): T | undefined {
+/**
+ * プラグインの部品が ctx.dispatch に渡した値を確かめる（store の pluginContext から呼ぶ）。
+ * Msg の形（type が文字列のオブジェクト）でなければ捨てて知らせる。
+ * プラグインの Msg なら、その結果は updatePlugin が looksLikeModel で確かめる。
+ * 土台の Msg（Undo など）は中身（deck などの欄）までは確かめない。
+ */
+export function checkMsgFromPlugin(value: unknown): value is Msg {
+  if (looksLikeMsg(value)) return true;
+  console.error('プラグインの部品が Msg ではないものを dispatch しました', value);
+  return false;
+}
+
+/** Msg の形か（type が文字列のオブジェクト） */
+function looksLikeMsg(value: unknown): value is Msg {
+  return typeof value === 'object' && value !== null && typeof (value as { type?: unknown }).type === 'string';
+}
+
+/**
+ * プラグインの関数を呼ぶ。例外が出たらコンソールに出して undefined を返す。
+ *
+ * 戻り値はわざと unknown にしている（Step 6 の再発防止）。Plugin の型は「update は Model を返す」と
+ * 書いてあるが、外部プラグインは型の確認を通っていないので、何が返るかわからない。unknown にしておけば、
+ * 確かめる関数（looksLikeModel など）を通さないと使えず、確かめ忘れは型エラーになる。
+ */
+function callPlugin(plugin: Plugin, fn: () => unknown): unknown {
   try {
     return fn();
   } catch (e) {

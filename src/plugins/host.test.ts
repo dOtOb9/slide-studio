@@ -7,6 +7,7 @@ import * as pluginApi from '../plugin-api';
 import { api, isCompatible, type Plugin } from '../plugin-api';
 import sample from '../samples/sample-deck.html?raw';
 import {
+  checkMsgFromPlugin,
   listPlugins,
   pluginFromModule,
   registerPlugin,
@@ -73,6 +74,23 @@ describe('registerPlugin', () => {
     // 一覧の画面にそのまま描くので、文字列でないと画面全体が落ちる（Step 6 audit-1 #1）
     expect(() => registerPlugin({ name: 'a', apiVersion: '1.0', title: { x: 1 } }, 'external')).toThrow('title が文字列ではありません');
     expect(() => registerPlugin({ name: 'b', apiVersion: '1.0', description: 42 }, 'external')).toThrow('description が文字列ではありません');
+    expect(listPlugins()).toEqual([]);
+  });
+
+  // Step 6 の再発防止: Plugin の欄はすべて外部から来る値。欄ごとに「不正な値」を1つ書き、登録で断られることを確かめる。
+  // Record<keyof Plugin, …> なので、Plugin に欄を足すとここに書かないと型エラーになり、
+  // 書けば validatePlugin が確かめていない限りテストが落ちる（確かめ忘れに気づける）。
+  const badFields: Record<keyof Plugin, { value: unknown; message: string }> = {
+    name: { value: 'Bad Name', message: 'プラグイン名' },
+    apiVersion: { value: 1, message: 'apiVersion' },
+    title: { value: { x: 1 }, message: 'title が文字列ではありません' },
+    description: { value: 42, message: 'description が文字列ではありません' },
+    update: { value: 1, message: 'update が関数ではありません' },
+    onKey: { value: 'x', message: 'onKey が関数ではありません' },
+    toolbar: { value: { mount: 1 }, message: 'mount がありません' },
+  };
+  it.each(Object.entries(badFields))('欄 %s に不正な値があれば断る', (key, { value, message }) => {
+    expect(() => registerPlugin({ name: 'a', apiVersion: '1.0', [key]: value }, 'external')).toThrow(message);
     expect(listPlugins()).toEqual([]);
   });
 
@@ -164,6 +182,26 @@ describe('onKey', () => {
     registerPlugin(counter, 'external');
     expect(press(setup(), '+').plugins.counter).toBe(1);
     expect(error).toHaveBeenCalled();
+  });
+});
+
+describe('checkMsgFromPlugin（部品が dispatch した値）', () => {
+  it('type が文字列のオブジェクトだけを通す', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(checkMsgFromPlugin({ type: 'counter/Added' })).toBe(true);
+    expect(checkMsgFromPlugin({ type: 'Undo' })).toBe(true);
+    for (const bad of [null, undefined, 'Undo', 5, {}, { type: 5 }]) expect(checkMsgFromPlugin(bad)).toBe(false);
+    expect(error).toHaveBeenCalledTimes(6);
+  });
+});
+
+describe('onKey の戻り値', () => {
+  it('Msg の形でない値（文字列・type の無いオブジェクト）は飛ばして、次のプラグインに聞く', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    registerPlugin({ name: 'str', apiVersion: '1.0', onKey: () => 'counter/Added' }, 'external');
+    registerPlugin({ name: 'obj', apiVersion: '1.0', onKey: () => ({ type: 7 }) }, 'external');
+    registerPlugin(counter, 'external');
+    expect(press(setup(), '+').plugins.counter).toBe(1);
   });
 });
 
