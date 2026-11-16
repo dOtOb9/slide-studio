@@ -25,4 +25,13 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    // scripts/ は Node で動かす道具（CI から呼ぶ検査など）。TypeScript ではなく .mjs で書く
+    extends: [js.configs.recommended],
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      globals: globals.node,
+    },
+  },
 )
