@@ -34,6 +34,14 @@ function isBlank(text) {
 }
 
 /**
+ * 自分で実行した結果ではないことを示す語（audit-1 #2）。
+ * PR #4 の原因の2つ目は「作業役の報告・CI の緑を自分の検証の代わりにした」こと。
+ * 「CI を参照」「未実行」「省略」のような書き方は、欄が埋まっていても結果ではないので不合格にする。
+ */
+// CI は大文字の単語のときだけ（"precise" などの英単語の中の ci で落とさないため）。
+const NOT_OWN_RESULT = /未実行|実行していない|省略|参照|同上|未確認|作業役|\bCI\b|TODO/;
+
+/**
  * 「監査役のレビュー」の節の行を返す。無ければ null。
  * 節は見出しの次の行から、同じかそれより上の階層の見出しの手前まで（ただし REPORT_SUBHEADINGS の見出しは節に含める）。
  */
@@ -66,7 +74,7 @@ function toolsWithResult(section) {
     matches.forEach((m, i) => {
       const end = i + 1 < matches.length ? matches[i + 1].index : line.length;
       const value = line.slice(m.index + m[0].length, end);
-      if (!isBlank(value)) found.add(m[1]);
+      if (!isBlank(value) && !NOT_OWN_RESULT.test(value)) found.add(m[1]);
     });
   }
   return found;
@@ -111,7 +119,7 @@ export function checkPrBody(body) {
   const found = toolsWithResult(section);
   for (const tool of TOOLS) {
     if (!found.has(tool)) {
-      problems.push(`監査役のレビューの節に「${tool}: 」の検証結果がない（空や「…」だけも不可。自分で実行した結果を書く）`);
+      problems.push(`監査役のレビューの節に「${tool}: 」の検証結果がない（空や「…」だけ、「未実行」「CI を参照」「省略」なども不可。自分で実行した結果を書く）`);
     }
   }
 

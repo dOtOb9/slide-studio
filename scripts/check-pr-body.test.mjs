@@ -97,6 +97,26 @@ vitest: 152 passed / tsc: エラーなし / eslint: エラーなし
     expect(problems[0]).toContain('vitest');
   });
 
+  // audit-1 #2: 欄が埋まっていても、自分で実行した結果でない書き方は不合格
+  it.each([
+    ['未実行'],
+    ['CI を参照'],
+    ['CI と同じ'],
+    ['省略'],
+    ['作業役の報告どおり'],
+    ['同上'],
+    ['未確認'],
+    ['TODO'],
+  ])('検証結果が「%s」なら不合格', (value) => {
+    const problems = checkPrBody(replaced('vitest: 152 passed', `vitest: ${value}`));
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain('vitest');
+  });
+
+  it('英単語の中の ci（precise など）では落とさない', () => {
+    expect(checkPrBody(replaced('vitest: 152 passed', 'vitest: 152 passed (precise)'))).toEqual([]);
+  });
+
   it('auditor.md の型をそのまま写した（全部「…」）なら3つとも挙げる', () => {
     const problems = checkPrBody(replaced('vitest: 152 passed / tsc: エラーなし / eslint: エラーなし', 'vitest: … / tsc: … / eslint: …'));
     expect(problems).toHaveLength(3);
