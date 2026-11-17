@@ -6,11 +6,13 @@ import type { Plugin } from '../plugin-api';
 import { registerPlugin } from './host';
 
 // ① 各プラグインを import する
+import { images } from './images/plugin';
 import { shapes } from './shapes/plugin';
 
 // ② 一覧に並べる（1行に1つ、末尾に , を付けて足す）
 export const builtinPlugins: Plugin[] = [
   shapes,
+  images,
 ];
 
 export function registerBuiltinPlugins() {

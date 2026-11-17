@@ -161,6 +161,7 @@ export default function myPlugin(api) {   // api: アプリの API（plugin-api 
 | `getPluginState` / `setPluginState` | プラグイン自身の状態（`model.plugins[名前]`。保存せず、元に戻すの対象外） |
 | `imagePathOf(blob)` | 画像の Blob から置き場所のパス `images/<SHA-256>.<拡張子>` を作る（非同期。対応しない型なら `null`）。1.2 から |
 | `sha256Hex(blob)` / `imagePath(hash, mimeType)` / `isImagePath(src)` | 上の部品: 中身のハッシュ（非同期）、ハッシュと型からパス、管理対象の画像パスか。1.2 から |
+| `checkImageFile(file)` / `extensionOf(mimeType)` | 受け取った画像のファイルを確かめる: だめなら理由の文字列（File でない・空・画像でない・50MB 超）、images/ に置ける型なら拡張子（置けなければ `null`）。1.3 から |
 | `version` | アプリの API の版 |
 
 **画像を置く**（1.2 から）: 画像の中身は Deck ではなく `model.images`（パス → Blob。保存のときに images/ に書かれる）に入る。

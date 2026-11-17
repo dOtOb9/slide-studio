@@ -102,6 +102,8 @@ Step 6 では「外部プラグインの title が文字列でない」「update
 | deck.html の img の src | 画像のパス | `model/images.ts` の `isImagePath`（images/ 直下・決まった拡張子だけを管理対象にする。通らないものはただの文字列として残す） |
 | images/ から読んだファイル | 人や AI が置いたファイル | `model/images.ts` の `checkImageFile`（File でない・空・画像でない型・50MB 超は読まずに理由をコンソールへ。ほかの画像は読む）。`io/file.ts` の `readImageFiles` から呼ぶ |
 | `ImagesAdded` の `images` | フォルダの読み込みとプラグインの部品が送る | `app/update.ts` → `model/images.ts` の `acceptImages`（オブジェクトでない → 何もしない。キーが画像のパスでない・値が Blob でない項目は捨ててコンソールへ） |
+| 画像の挿入で受け取るファイル | ファイル選択・貼り付け・ドロップのファイル | `plugins/images/prepare.ts` の `rejectReason`（`checkImageFile` に加えて images/ に置ける MIME 型か）と `measureImage`（読めない・大きさ 0）。だめなファイルは理由をコンソールと alert に出し、ほかは入れる。貼り付けは画像が無ければ横取りしない、ドロップはファイル以外を無視（`plugins/images/events.ts`） |
+| `images/Inserted` の `images` | 画像の挿入の部品（外部プラグインの部品からも送れる） | `plugins/images/update.ts` の `acceptInsertions`（配列でない → 何もしない。パスが `isImagePath` を通らない・中身が `Model.images` に無い・大きさが正の有限な数でない項目は捨ててコンソールへ） |
 
 **残している穴**: 部品が土台の Msg（`Undo` など）を dispatch したとき、type の形は確かめるが、中身（`DeckLoaded` の deck など）は確かめない。
 外部プラグインは「信頼できるものだけを入れる」前提なのでここまでにしている。
