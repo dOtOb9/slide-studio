@@ -5,7 +5,13 @@
 import { isDirty } from '../app/model';
 import type { Msg } from '../app/msg';
 import { getModel, useStore } from '../app/store';
-import { imagesToWrite, missingImagePaths } from '../model/images';
+import {
+  imagesLostBySave,
+  imagesToWrite,
+  lostImagesQuestion,
+  missingImagePaths,
+  type SaveDestination,
+} from '../model/images';
 import { parseDeck } from '../model/parse';
 import { openFile, readImageFiles, requestFolder, saveFile } from './file';
 import { deckHtml } from './images';
@@ -53,12 +59,21 @@ async function loadMissingImages(): Promise<string[]> {
 
 export async function saveDeck(saveAs = false) {
   // 書き込みには時間がかかり、その間に編集が続くこともあるので、保存する Deck をここで確定させる
-  const { deck, fileName, images } = getModel();
+  const { deck, fileName, images, canReadFolder } = getModel();
   try {
     // 中身を持っている画像を images/ に書く。持っていない画像（フォルダを許可していない等）は参照のまま。
     // images/ に書けないとき（フォルダを選べないブラウザ・フォルダの許可をもらえなかった）は、画像を埋め込んだ1ファイルにする
-    const saved = await saveFile(fileName, saveAs, imagesToWrite(deck, images), (inFolder) =>
-      deckHtml(deck, images, inFolder),
+    // 中身の無い画像は images/… の参照のまま書かれるので、別の場所に保存すると表示されなくなる。保存する前に知らせる
+    const proceed = (dest: SaveDestination) => {
+      const lost = imagesLostBySave(deck, images, dest);
+      return lost.length === 0 || window.confirm(lostImagesQuestion(lost.length, canReadFolder));
+    };
+    const saved = await saveFile(
+      fileName,
+      saveAs,
+      imagesToWrite(deck, images),
+      (inFolder) => deckHtml(deck, images, inFolder),
+      proceed,
     );
     if (!saved) return;
     dispatch({ type: 'DeckSaved', deck, fileName: saved.name, canReadFolder: saved.canReadFolder });
