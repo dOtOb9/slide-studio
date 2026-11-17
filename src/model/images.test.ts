@@ -4,8 +4,10 @@ import {
   checkImageFile,
   extensionOf,
   imagePath,
+  imagesLostBySave,
   imagesToWrite,
   isImagePath,
+  lostImagesQuestion,
   MAX_IMAGE_BYTES,
   mimeTypeOf,
   missingImagePaths,
@@ -229,5 +231,39 @@ describe('imagesToWrite（保存で中身を書き出す画像。Step 8 audit-1 
     const out = imagesToWrite(deck, { [A]: a, [C]: c }); // B は中身が無い、C は使っていない
     expect(Object.keys(out)).toEqual([A]);
     expect(out[A]).toBe(a);
+  });
+});
+
+describe('imagesLostBySave（別の場所への保存で表示されなくなる画像。PR #6 pr-audit 推奨 #1）', () => {
+  const A = `images/${'a'.repeat(64)}.png`;
+  const B = `images/${'b'.repeat(64)}.png`;
+  const C = `images/${'c'.repeat(64)}.png`;
+  const deck = parseDeck(`<body><section><img data-el src="${A}"><img data-el src="${B}"></section><section><img data-el src="${C}"></section></body>`);
+  const images = { [A]: new Blob(['a']) }; // B と C は中身が無い
+
+  it('別のフォルダ（上書きでなく、許可済みのフォルダの直下でもない）なら、中身の無い画像を返す', () => {
+    expect(imagesLostBySave(deck, images, { overwrite: false, inGrantedFolder: false })).toEqual([B, C]);
+  });
+
+  it('上書き保存では何も返さない（中身の無い画像はそこの images/ にあるはず）', () => {
+    expect(imagesLostBySave(deck, images, { overwrite: true, inGrantedFolder: false })).toEqual([]);
+    expect(imagesLostBySave(deck, images, { overwrite: true, inGrantedFolder: true })).toEqual([]);
+  });
+
+  it('名前を付けて保存でも、許可済みのフォルダの直下なら何も返さない', () => {
+    expect(imagesLostBySave(deck, images, { overwrite: false, inGrantedFolder: true })).toEqual([]);
+  });
+
+  it('中身の無い画像が無ければ、別のフォルダでも空', () => {
+    const all = { [A]: new Blob(['a']), [B]: new Blob(['b']), [C]: new Blob(['c']) };
+    expect(imagesLostBySave(deck, all, { overwrite: false, inGrantedFolder: false })).toEqual([]);
+    const noImages = parseDeck('<body><section><div data-el>a</div></section></body>');
+    expect(imagesLostBySave(noImages, {}, { overwrite: false, inGrantedFolder: false })).toEqual([]);
+  });
+
+  it('知らせる文面に枚数が入る', () => {
+    expect(lostImagesQuestion(2)).toBe(
+      '2 枚の画像を読み込めていないため、新しい場所では表示されません。先に『フォルダへのアクセスを許可』で読み込んでください。保存を続けますか？',
+    );
   });
 });

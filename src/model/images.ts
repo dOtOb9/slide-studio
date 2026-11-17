@@ -86,6 +86,36 @@ export function imagesToWrite(deck: Deck, images: Record<string, Blob>): Record<
   return out;
 }
 
+/**
+ * 保存先について io/file.ts が調べた事実（判断は下の imagesLostBySave がする）。
+ *   overwrite       … 開いたファイルへの上書き保存か（名前を付けて保存・新しいファイルの保存・ダウンロードなら false）
+ *   inGrantedFolder … 保存先が、許可済みのフォルダ（開いたファイルのあるフォルダ）の直下か
+ */
+export interface SaveDestination {
+  overwrite: boolean;
+  inGrantedFolder: boolean;
+}
+
+/**
+ * この保存で表示されなくなる画像（保存する前に知らせるもの。PR #6 pr-audit 推奨 #1）。
+ * 中身を持っていない画像は、HTML に images/… の参照のまま書かれる。
+ * 開いたファイルと同じフォルダなら、そこの images/ にあるはずなので問題ない（空を返す）。
+ * 別のフォルダ（上書きでなく、許可済みのフォルダの直下でもない）なら、新しい場所には images/ が無いので壊れる。
+ * ダウンロードで保存するときも、保存先は別の場所とみなす（io/file.ts が overwrite も inGrantedFolder も false で渡す）
+ */
+export function imagesLostBySave(deck: Deck, images: Record<string, Blob>, dest: SaveDestination): string[] {
+  if (dest.overwrite || dest.inGrantedFolder) return [];
+  return missingImagePaths(deck, images);
+}
+
+/** imagesLostBySave が1つ以上あるときに、保存を続けるか聞く文面 */
+export function lostImagesQuestion(count: number): string {
+  return (
+    `${count} 枚の画像を読み込めていないため、新しい場所では表示されません。` +
+    '先に『フォルダへのアクセスを許可』で読み込んでください。保存を続けますか？'
+  );
+}
+
 // --- 外から来る値 -------------------------------------------------------------
 
 /**
