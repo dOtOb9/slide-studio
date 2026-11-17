@@ -236,6 +236,7 @@ async function writeImagesForSave(
  *             保存先の事実（上書きか・許可済みのフォルダの直下か）を渡すだけで、聞くかどうかは呼び出し側
  *             （model/images.ts の imagesLostBySave）が決める
  * 保存先を選んだあとは、画像がどうなっても HTML は必ず書く（名前を付けて保存で、空のファイルを残さないように）。
+ * ただし proceed が false のときを除く（ピッカーの後にやめると、ピッカーで作られた空のファイルが残る。README「画像（images/）」）。
  * 画像を先に書き、最後に HTML を書く
  */
 export async function saveFile(
