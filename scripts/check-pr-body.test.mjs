@@ -174,6 +174,36 @@ vitest: 152 passed / tsc: エラーなし / eslint: エラーなし
     expect(checkPrBody(body)).toHaveLength(4);
   });
 
+  // PR #5 pr-audit-1 #1: HTML コメントの中は画面に表示されないので数えない。ブロックは同じ記号でだけ閉じる
+  it('HTML コメントの中にだけ節があるなら不合格', () => {
+    const body = '## 概要\n承認しました\n<!--\n## 監査役のレビュー\nvitest: 1 passed / tsc: ok / eslint: ok\n判定: 承認\n-->';
+    expect(checkPrBody(body)).toEqual(['「監査役のレビュー」を含む見出し（## か ###）がない']);
+  });
+
+  it('1行の中の HTML コメントに書いた検証結果は数えない', () => {
+    const problems = checkPrBody(replaced('vitest: 152 passed / tsc', '<!-- vitest: 152 passed --> / tsc'));
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain('vitest');
+  });
+
+  it('閉じていない HTML コメントは本文の最後までを隠す', () => {
+    expect(checkPrBody(replaced('## 監査役のレビュー', '<!--\n## 監査役のレビュー'))).toHaveLength(1);
+  });
+
+  it('HTML コメントの後ろの本物の節は数える', () => {
+    expect(checkPrBody('<!-- 型: ## 監査役のレビュー -->\n' + GOOD)).toEqual([]);
+  });
+
+  it('``` で開いたブロックの中の ~~~ ではブロックが閉じない', () => {
+    const body = '## 監査役のレビュー\n```\n~~~\nvitest: 1 passed / tsc: ok / eslint: ok\n判定: 承認\n```';
+    expect(checkPrBody(body)).toHaveLength(4);
+  });
+
+  it('```` で開いたブロックは ``` では閉じない（長さが足りない）', () => {
+    const body = '## 監査役のレビュー\n````\n```\nvitest: 1 passed / tsc: ok / eslint: ok\n判定: 承認\n````';
+    expect(checkPrBody(body)).toHaveLength(4);
+  });
+
   it('PR #4 の本文のように「承認しました」とだけ書いたものは不合格', () => {
     const body = `## 概要
 npm audit の指摘を直す。

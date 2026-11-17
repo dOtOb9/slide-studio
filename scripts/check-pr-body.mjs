@@ -34,17 +34,31 @@ function isBlank(text) {
 }
 
 /**
+ * HTML コメント（<!-- … -->）を取り除く（PR #5 pr-audit-1 #1）。GitHub は画面に表示しないので、中に書いた記録は数えない。
+ * 1行の中のものも複数行にまたがるものも消す。閉じていない <!-- は、GitHub と同じく本文の最後までを隠す。
+ * 行の数は変えない（中の改行は残す）。
+ */
+function withoutHtmlComments(text) {
+  return text.replace(/<!--[\s\S]*?(?:-->|$)/g, (comment) => comment.replace(/[^\n]/g, ''));
+}
+
+/**
  * コードブロック（``` か ~~~ で囲んだ所）の行を空行に置き換える（audit-1 #5）。
  * 本文に型を引用したブロックの見出しを本物の節と取り違えないため。節全体をブロックに入れても数えない。
+ * ブロックは、開いたときと同じ記号で、長さが同じかそれ以上の行（後ろに文字が無いもの）でだけ閉じる（PR #5 pr-audit-1 #1）。
+ * 閉じていないブロックは、本文の最後まで続く（Markdown と同じ）。
  */
 function withoutCodeBlocks(lines) {
-  let inBlock = false;
+  let fence = null; // 開いているブロックの記号（例: '```'、'~~~~'）。ブロックの外なら null
   return lines.map((line) => {
-    if (/^\s{0,3}(```|~~~)/.test(line)) {
-      inBlock = !inBlock;
-      return '';
+    if (fence === null) {
+      const open = /^\s{0,3}(`{3,}|~{3,})/.exec(line);
+      if (open) fence = open[1];
+      return open ? '' : line;
     }
-    return inBlock ? '' : line;
+    const close = /^\s{0,3}(`{3,}|~{3,})\s*$/.exec(line);
+    if (close && close[1][0] === fence[0] && close[1].length >= fence.length) fence = null;
+    return '';
   });
 }
 
@@ -124,7 +138,9 @@ function verdictText(section) {
  * @returns {string[]}
  */
 export function checkPrBody(body) {
-  const lines = withoutCodeBlocks(String(body ?? '').split(/\r?\n/));
+  // 画面に表示されない所（HTML コメント、コードブロック）は数えない。
+  // 先に HTML コメントを消すので、コードブロックの中の <!-- も消える（厳しい側に倒れるだけなので、そのままにする）。
+  const lines = withoutCodeBlocks(withoutHtmlComments(String(body ?? '')).split(/\r?\n/));
   const section = findReviewSection(lines);
   if (section === null) {
     return ['「監査役のレビュー」を含む見出し（## か ###）がない'];
