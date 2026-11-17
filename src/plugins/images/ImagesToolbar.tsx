@@ -1,11 +1,12 @@
 // ツールバーの「画像を挿入」ボタン（view）。押すとファイルの選択が開き、選んだ画像（複数可）を挿入する。
 // store は import せず、Model と dispatch を props で受け取る（plugin-api/react.tsx の PluginViewProps）。
-// 貼り付けとドロップは別に足す。
+// 貼り付けとドロップは、ページ全体のイベントなので events.ts（plugin.ts の mount で登録）。
 
 import { ImagePlus } from 'lucide-react';
 import { useRef } from 'react';
 import type { PluginViewProps } from '../../plugin-api/react';
 import { insertImageFiles } from './prepare';
+import './style.css';
 
 const LABEL = '画像を挿入（貼り付け・ドラッグ&ドロップでも入れられます）';
 
