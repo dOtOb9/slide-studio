@@ -23,6 +23,12 @@ npm run check        # 上の3つを順に
 （すべてのブランチへの push で走り、同じリポジトリからの PR には push の結果が付く）。
 PR ではもう1つ、`.github/workflows/pr-review-record.yml` が PR の本文に「監査役のレビュー」の記録があるかを確かめる（Draft は対象外。下記「PR の本文」。検査は `scripts/check-pr-body.mjs`）。
 
+**main のブランチ保護**（オーナーの決定 2026-11-17）: 必須のステータスは `check-body`（pr-review-record のジョブ）と `pr-ci-audit` の2つで、管理者にも適用する。
+- `pr-ci-audit` は GitHub Actions ではなく、**制御役が付ける印**（commit status）。PR・CI の監査役が「マージしてよい」と判定し、報告に書いた完全な SHA が
+  PR の先頭と同じときだけ付ける（「作業ループ」7）。新しく push すると先頭が変わって印が外れるので、監査をやり直すまでマージできない。
+- 入れた理由: PR #5 と #6 が、PR・CI の監査役の監査が終わる前にマージされた。監査の完了が文書の約束だけで、マージを止めるものが無かったため。
+- 例外は作らない。制御役がマージしてよい PR（依存の更新・文書だけ）も、この仕組みを入れた PR 自体も、`pr-ci-audit` が緑になるまでマージできない。
+
 **Windows の注意**: Git Bash で `cd /c/workspace/slide-studio` の形で移動して vitest を実行すると、
 全テストが `Cannot read properties of undefined (reading 'config')` で失敗する（コードの問題ではない）。
 PowerShell から実行するか、Git Bash なら `cd C:/workspace/slide-studio` の形で移動してから実行する。
@@ -212,6 +218,7 @@ msedge --headless=new --remote-debugging-port=9333 --user-data-dir=<一時ディ
   - 制御役がマージしてよいのは、PR・CI の監査役が承認した、**依存の更新と文書だけの PR**（アプリの動きを変えないもの。
     例: npm audit の依存更新、README の表の更新、AGENTS.md の変更）。それ以外の main へのマージは所有者がする。
   - 当てはまるかは PR・CI の監査役が報告の「PR の種類」に書く。判断に迷う PR（コードと文書が混ざる等）は、制御役がマージせず所有者に回す。
+  - 例外のマージでも、`check-body` と `pr-ci-audit` の両方が緑になってからマージする（上記「コマンド」の main のブランチ保護。印を省いてマージしない）。
 
 ## 作業ループ
 
@@ -228,8 +235,13 @@ msedge --headless=new --remote-debugging-port=9333 --user-data-dir=<一時ディ
                               CI と差分の監査（PR・CI の監査役。経緯を知らない）─CI 失敗・指摘─▶ 作業役: 修正＋再発防止策
                                     │問題なし                         ▲                              │
                                     │                                 └─ 制御役が push ◀─ PR・CI の監査役が判定
+                                    ▼ マージしてよい（確かめたコミットの完全な SHA つき）
+                              制御役: PR の先頭がその SHA と同じか確かめる ─違う─▶ 印を付けずに PR・CI の監査役へ戻す
+                                    │同じ
                                     ▼
-                              制御役が「PR・CI 監査: マージしてよい」をコメント ─▶ 所有者がマージ
+                              制御役: pr-ci-audit の印（success）を付け、監査役の文面を PR にコメント
+                                    ▼
+                              check-body と pr-ci-audit が緑 ─▶ 所有者がマージ（例外は制御役）
 ```
 
 監査役と作業役の間のやり取りは、すべて制御役が内容を変えずに中継する（上記「役割」）。
@@ -266,8 +278,15 @@ msedge --headless=new --remote-debugging-port=9333 --user-data-dir=<一時ディ
      （例: ループでは Windows で動かしていて Linux との差を見ていない、手元の node_modules が古い、レビューで check を再実行していない）。
      PR・CI の監査役が判定し、承認されたら制御役が push して 7 をやり直す（同じ PR なら同じ PR・CI の監査役に続きを送る）。
      一過性のもの（フレーキー、環境要因）が疑われるときは、PR・CI の監査役の依頼で制御役が CI を再実行して確かめる。
-   - 問題が無ければ、PR・CI の監査役は「マージしてよい」のコメントの文面を制御役に返し、制御役がそのまま PR にコメントとして投稿する。
-8. **マージ**（所有者）: マージは原則として所有者がする。依存の更新と文書だけの PR は、PR・CI の監査役の承認の後に制御役がマージしてよい（上記「役割」）。
+   - 問題が無ければ、PR・CI の監査役は「マージしてよい」と判定し、**確かめたコミットの完全な SHA** とコメントの文面を制御役に返す。
+   - **印を付ける**（制御役）: PR の先頭（`gh pr view <番号> --json headRefOid`）が報告の SHA と同じかを確かめる。
+     - 同じなら、その SHA に `pr-ci-audit` の印を付け、監査役の文面をそのまま PR にコメントする:
+       `gh api repos/dOtOb9/slide-studio/statuses/<SHA> -f state=success -f context=pr-ci-audit -f description="PR・CI 監査: マージしてよい"`
+     - 違えば（監査の後に push があった等）、印を付けずに PR・CI の監査役へ戻し、今の先頭で監査をやり直してもらう。
+     - 印を付けるかどうかは、監査役の判定と SHA の一致だけで決める。制御役が自分の判断で印を付けたり、別の SHA に付けたりしない。
+     - 新しく push したら先頭が変わり、印は外れる（付け直すのは、監査をやり直して「マージしてよい」が出た後だけ）。
+8. **マージ**（所有者）: `check-body` と `pr-ci-audit` の両方が緑になってから、所有者がマージする（main のブランチ保護で、緑になるまでマージできない）。
+   依存の更新と文書だけの PR は、同じく両方が緑になってから制御役がマージしてよい（上記「役割」）。
 
 ### 差し戻しの数え方
 
