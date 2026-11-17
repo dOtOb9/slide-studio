@@ -7,7 +7,8 @@ AI エージェント（Claude Code ほか）がこのリポジトリで作業�
 HTML を正本にした、PowerPoint のように GUI で編集できるスライドエディタ。
 - 他の人に配布する前提。共同編集は対象外。AI 連携は「外部の AI が deck.html を直接編集できる」まで。
 - **オーナーは React の基礎を学びながら進めている。** コードは AI が書き、オーナーが読んで理解する。
-  → 賢い抽象化より、読んで追える素直なコードを優先する。設計意図は日本語のコメントで残す。
+  → 賢い抽象化より、読んで追える素直なコードを優先する。**コードにコメントは書かない**（下記「コメントを書かない」）。
+    設計意図は、名前・型・名前付きの関数や定数への切り出し・テスト名で表し、コードから類推できるようにする。
 
 ## コマンド
 
@@ -80,6 +81,26 @@ deck.html ─parse─▶ Deck（Model の一部）─serialize─▶ deck.html
 
 ファイル形式の仕様は README.md を参照。
 
+### コメントを書かない（オーナーの決定 2026-11-17）
+
+コード（`src/`・`examples/`・`scripts/`・設定ファイル・CSS・HTML・`.github/workflows/`）にはコメントを書かない。見つけたら消す。
+読み手が要る情報（なぜそうしているか、ブラウザの癖への対処、外から来る値で確かめないこと など）は、コメント以外で表す:
+
+| 表したいこと | 表し方の例 |
+|---|---|
+| なぜその値・その分岐か | 名前付きの定数・変数（`CLICK_JITTER_SLIDE_PX`、`const deletedBeforeCurrent = …`） |
+| ブラウザの癖への対処 | 名前付きの関数への切り出し（`commitFocusedFieldSoItsBlurArrivesBeforeDragStarts()`、`keepEscapeFromCrossingShadowDomToDeselect(e)`） |
+| 欄の意味・単位・約束 | 型の別名（`SlidePx`、`AppOnlyIdNotSavedToFile`、`MoveIfNullElseResizeByHandle`）。別名は構造が同じなので公開している型の形は変わらない |
+| 何を確かめて何を確かめないか | 振る舞いを言い表すテスト名（「中身が本当にその形式の画像かは確かめない（…アプリは落ちないため）」） |
+| 型で網羅させる表の意図 | 変数名・型（`badValueForEveryPluginFieldOrTypeError: Record<keyof Plugin, …>`） |
+| プラグイン作者向けの約束事で、名前・型で表しきれないもの | README「プラグイン」（コードには残さない） |
+| 例外の理由（線の例外など） | 方針テストの中の表（`src/ui-policy.test.ts` の `BORDER_EXCEPTIONS`）や GitHub Actions の `name:` |
+
+- 残してよいのは**ツールへの指示**だけ（消すと動作や検査が変わるもの）: `/// <reference …/>`、`eslint-disable…`、`@ts-expect-error` / `@ts-ignore`、`/* @vite-ignore */`。
+  指示に説明を足さない（`// @vite-ignore: 理由` は説明つきのコメントとして落ちる）。
+- `src/no-comments.test.ts` が、TypeScript のパーサーで本当のコメントだけを数えて確かめている（文字列・テンプレート・正規表現・JSX の文字の中の `//` は数えない）。
+  CSS・HTML・ワークフローの YAML は単純な一致で確かめる。新しい種類のコードのファイルを足したら、その glob に入るか確かめる。
+
 ### 外から来る値（Step 6 の再発防止）
 
 TypeScript の型は、自分たちのコードどうしの約束にしか効かない。外部プラグインや、人・AI が書いたファイルから来る値は
@@ -88,15 +109,16 @@ Step 6 では「外部プラグインの title が文字列でない」「update
 アプリが落ちる・止まらなくなった（すべて型を信じて使っていた）。
 
 - 外から来る値は `unknown` として受け取り、**入口で1回だけ**形を確かめてから中に入れる。中のコードはもう疑わなくてよい。
-- 確かめ方は「画面や update が落ちない最低限」。全部の欄を細かく調べる必要はないが、何を確かめて何を確かめないかはコメントに書く。
+- 確かめ方は「画面や update が落ちない最低限」。全部の欄を細かく調べる必要はないが、何を確かめて何を確かめないかを、
+  コメントでなく関数名・型・テスト名で表す（例: 確かめないことも「〜までは確かめない（理由）」という名前のテストにして、その振る舞いを固定する）。
 - 形が違ったら、アプリを止めずに断る（登録しない・その Msg を無かったことにする）か、読める範囲で読む（ファイル）。理由はコンソールか画面に出す。
 - 入口を足したら、下の表に1行足し、**不正な値を入れるテスト**を書く。
   関数を受け取る入口（部品が渡すコールバックなど）では、「関数でない値」と「呼んだら例外を出す関数」の両方を試す。
 
 | 入口 | 来る値 | 確かめる場所 |
 |---|---|---|
-| 外部プラグインのモジュール | default export・Plugin の各欄 | `plugins/host.ts` の `pluginFromModule` / `validatePlugin`（欄ごとのテストは `host.test.ts` の `badFields`。Plugin に欄を足すと型エラーで気づける） |
-| プラグインの関数の戻り値 | `update` / `onKey` の戻り値 | 登録簿の型 `ReceivedPlugin`（関数の欄の戻り値が `unknown`。どう呼んでも確かめずに使うと型エラー）、例外は `callPlugin` が受け止める → `looksLikeModel` / `looksLikeMsg` |
+| 外部プラグインのモジュール | default export・Plugin の各欄 | `plugins/host.ts` の `pluginFromModule` / `validatePlugin`（欄ごとのテストは `host.test.ts` の `badValueForEveryPluginFieldOrTypeError`。Plugin に欄を足すと型エラーで気づける） |
+| プラグインの関数の戻り値 | `update` / `onKey` の戻り値 | 登録簿の型 `ReceivedPlugin`（関数の欄の戻り値が `unknown`。どう呼んでも確かめずに使うと型エラー）、例外は `callPlugin` が受け止める → `looksLikeModelEnoughForScreenToRead` / `looksLikeMsg` |
 | プラグインの部品 | `mount` の戻り値、`ctx.dispatch` に渡す値、`ctx.subscribe` に渡す関数 | `components/PluginSlot.tsx`（関数のときだけ呼ぶ）、`plugins/host.ts` の `checkMsgFromPlugin` / `listenerFromPlugin`（`app/store.ts` の `pluginContext` から呼ぶ） |
 | 開いたファイル（deck.html） | 人や AI が書いた HTML | `model/parse.ts`（知らない書き方は読める範囲で読む。README「ファイル形式」） |
 | deck.html の img の src | 画像のパス | `model/images.ts` の `isImagePath`（images/ 直下・決まった拡張子だけを管理対象にする。通らないものはただの文字列として残す） |
@@ -155,10 +177,11 @@ store とのつなぎは `reactView` と `PluginSlot`（ctx）が受け持つ。
 3. **必要なら部品を書く。** 部品は `model` を読み、`dispatch` で Msg を送るだけにする。判断は update に書く。
 4. **キー操作が要るなら `onKey`。** 土台が扱わなかったキーだけが、有効なプラグインに登録順で回ってくる。Ctrl 系のキーは、Model が変われば
    ブラウザ標準の動作（ブックマーク等）が自動で止まるので、土台の `useKeyboard.ts` は触らなくてよい。
-5. **登録する。** `plugins/builtin.ts` の ① に import、② に `xxx,` の行を足すだけ（並び順がツールバーの並び順）。
+5. **登録する。** `plugins/builtin.ts` の import の並びに1行、`builtinPlugins` の配列に `xxx,` の行を1行足すだけ（配列の並び順がツールバーの並び順）。
    並列で作業すると、これらの行が衝突する。**解消するときは両方の行を残す。**
 6. **テストを書く。** `plugins/<名前>/*.test.ts`。**ファイルの先頭で自分の `./plugin` を import し、`registerPlugin(xxx, 'builtin')` で登録する**
    （テストは `main.tsx` を通らないため。テストファイルごとに登録簿は空から始まる）。あとは土台の `update` に Msg を流せば届く。
+   自分のプラグインを最初に import するのは、プラグインを作る人が自然に書く順番で循環 import が無いことの確かめも兼ねるため。
    手本は `plugins/shapes/shapes.test.ts`。
 7. **ブラウザで確認する**（下記「ブラウザでの動作確認」）。部品を足したなら、少なくともボタンを押して Model が期待どおり変わることと、
    プラグインの一覧で無効→有効にしても部品が動くことを見る。
@@ -190,7 +213,8 @@ store とのつなぎは `reactView` と `PluginSlot`（ctx）が受け持つ。
 - プラグインの部品も同じ見た目にする。共通のクラス名（README「プラグイン」の「部品の見た目」）を使う。
 - アイコンは `lucide-react`（同梱の部品）。アイコンだけのボタンは `components/IconButton.tsx` を使う。
 - `src/ui-policy.test.ts` が、src の CSS と `components/` を読んで上の方針（線・色の変数・`.button` / `.icon-button` の背景の上書き・IconButton）を確かめている。
-  線を例外として使うときは、その宣言の行に `/* 線の例外: 理由 */` と書く。共通クラスの背景を場所ごとに変えるときは `:where(…) .button` のように詳細度を上げない形で書く。
+  線を例外として使うときは、`src/ui-policy.test.ts` の `BORDER_EXCEPTIONS` に「ファイル セレクタ」と理由を1行足す（CSS にはコメントを書かない）。
+  共通クラスの背景を場所ごとに変えるときは `:where(…) .button` のように詳細度を上げない形で書く（詳細度の高い上書きは、後に書いた hover・無効・押下中の色を消す）。
 
 ## ブラウザでの動作確認
 
