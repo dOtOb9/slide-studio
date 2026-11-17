@@ -5,7 +5,7 @@
 // 隣の images/ フォルダの画像も、フォルダへのアクセスを許可してもらえば読み書きできる。
 // それ以外のブラウザでは、<input type="file"> で開き、ダウンロードで保存する（画像は埋め込む。io/commands.ts）。
 
-import { checkImageFile, IMAGE_DIR, mimeTypeOf } from '../model/images';
+import { checkImageFile, IMAGE_DIR, mimeTypeOf, type SaveDestination } from '../model/images';
 
 /** File System Access API のうち、ここで使う部分だけの型（TypeScript の標準の型にはまだ無いもの） */
 interface FileHandle {
@@ -232,6 +232,9 @@ async function writeImagesForSave(
  *            1つでもあれば images/ に書く。フォルダの許可がまだなら、ここでフォルダを選ばせる。
  *            フォルダに書けなければ、画像を data URI で deck.html に埋め込む（オーナーの決定 2026-11-17）
  *   html   … 保存する HTML を作る関数。inFolder = false なら画像を埋め込んだ HTML を返す（io/images.ts の deckHtml）
+ *   proceed … 保存先がわかったところで1回だけ呼ぶ。false なら何も書かずにやめる（null を返す）。
+ *             保存先の事実（上書きか・許可済みのフォルダの直下か）を渡すだけで、聞くかどうかは呼び出し側
+ *             （model/images.ts の imagesLostBySave）が決める
  * 保存先を選んだあとは、画像がどうなっても HTML は必ず書く（名前を付けて保存で、空のファイルを残さないように）。
  * 画像を先に書き、最後に HTML を書く
  */
@@ -240,15 +243,27 @@ export async function saveFile(
   saveAs: boolean,
   images: Record<string, Blob>,
   html: (inFolder: boolean) => Promise<string>,
+  proceed: (dest: SaveDestination) => boolean,
 ): Promise<{ name: string; canReadFolder: boolean; embedded: boolean } | null> {
   if (fsWindow.showSaveFilePicker) {
     try {
+      const pick = saveAs || !currentHandle;
+      const granted = currentDir; // ピッカーを開いている間に変わっても、聞くのが1回になるように先に取っておく
+      // フォルダの許可が無ければ、どこを選んでも「許可済みのフォルダの直下」にはならない。
+      // そのときはピッカーを開く前に聞く（ブラウザはピッカーで選んだ時点で保存先のファイルを作るので、
+      // 後で聞いてやめると空のファイルが残る）
+      if (pick && !granted && !proceed({ overwrite: false, inGrantedFolder: false })) return null;
       const target =
         saveAs || !currentHandle
           ? await fsWindow.showSaveFilePicker({ suggestedName: name, types: PICKER_TYPES })
           : currentHandle;
+      const inGrantedFolder = granted !== null && (await isDirectlyIn(granted, target));
+      // 上書き保存と、許可済みのフォルダがあるときの名前を付けて保存は、ここで聞く
+      // （後者は選んだ場所がその直下かで決まるので、ピッカーの後になる。やめるとピッカーで作られた空のファイルが残る。
+      // README「画像（images/）」）
+      if ((!pick || granted) && !proceed({ overwrite: !pick, inGrantedFolder })) return null;
       // 許可済みのフォルダは、保存先がその直下にあるときだけ使う（名前を付けて別のフォルダに保存したら捨てる）
-      let dir = currentDir && (await isDirectlyIn(currentDir, target)) ? currentDir : null;
+      let dir = inGrantedFolder ? granted : null;
       let inFolder = true; // 書き出す画像が無ければ、HTML はパスのまま
       let embedded = false; // フォルダに書けず、埋め込みに切り替えたか（知らせるため）
       if (Object.keys(images).length > 0) {
@@ -273,7 +288,9 @@ export async function saveFile(
       throw e;
     }
   }
-  // File System Access API が無いブラウザ: 画像を埋め込んだ1ファイルを、ダウンロードとして保存する
+  // File System Access API が無いブラウザ: 画像を埋め込んだ1ファイルを、ダウンロードとして保存する。
+  // ダウンロード先は、開いたファイルとは別の場所とみなす（中身の無い画像は、そこでは表示されない）
+  if (!proceed({ overwrite: false, inGrantedFolder: false })) return null;
   const url = URL.createObjectURL(new Blob([await html(false)], { type: 'text/html' }));
   const a = document.createElement('a');
   a.href = url;
