@@ -108,12 +108,15 @@ export function imagesLostBySave(deck: Deck, images: Record<string, Blob>, dest:
   return missingImagePaths(deck, images);
 }
 
-/** imagesLostBySave が1つ以上あるときに、保存を続けるか聞く文面 */
-export function lostImagesQuestion(count: number): string {
-  return (
-    `${count} 枚の画像を読み込めていないため、新しい場所では表示されません。` +
-    '先に『フォルダへのアクセスを許可』で読み込んでください。保存を続けますか？'
-  );
+/**
+ * imagesLostBySave が1つ以上あるときに、保存を続けるか聞く文面。
+ * canReadFolder（Model の canReadFolder）が false のブラウザには「フォルダへのアクセスを許可」のボタンが出ないので、
+ * そのボタンを案内しない（save-as audit-1 #1）
+ */
+export function lostImagesQuestion(count: number, canReadFolder: boolean): string {
+  const lead = `${count} 枚の画像を読み込めていないため、新しい場所では表示されません`;
+  if (canReadFolder) return `${lead}。先に『フォルダへのアクセスを許可』で読み込んでください。保存を続けますか？`;
+  return `${lead}（元の images/ フォルダの隣に置けば表示されます）。保存を続けますか？`;
 }
 
 // --- 外から来る値 -------------------------------------------------------------

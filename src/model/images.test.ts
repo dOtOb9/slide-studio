@@ -261,9 +261,16 @@ describe('imagesLostBySave（別の場所への保存で表示されなくなる
     expect(imagesLostBySave(noImages, {}, { overwrite: false, inGrantedFolder: false })).toEqual([]);
   });
 
-  it('知らせる文面に枚数が入る', () => {
-    expect(lostImagesQuestion(2)).toBe(
+  it('知らせる文面に枚数が入る（フォルダを読めるブラウザ）', () => {
+    expect(lostImagesQuestion(2, true)).toBe(
       '2 枚の画像を読み込めていないため、新しい場所では表示されません。先に『フォルダへのアクセスを許可』で読み込んでください。保存を続けますか？',
     );
+  });
+
+  it('フォルダを読めないブラウザでは『フォルダへのアクセスを許可』を案内しない（save-as audit-1 #1）', () => {
+    const text = lostImagesQuestion(2, false);
+    expect(text).toContain('2 枚');
+    expect(text).toContain('保存を続けますか？');
+    expect(text).not.toContain('フォルダへのアクセスを許可');
   });
 });
