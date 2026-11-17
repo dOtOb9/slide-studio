@@ -10,6 +10,13 @@
 //
 // 方針: 見出しの階層（## か ###）や空白の揺れには寛容に、中身の有無には厳しく。
 // 中身が本当に正しいか（検証を本当に実行したか）までは確かめられない。確かめるのは「書く欄を空のまま出していないか」。
+//
+// 検査の原則（PR #5 pr-audit-1 再発防止。テストもこの原則ごとにまとめてある。AGENTS.md「PR の本文」と同じ）:
+//   1 節: 「監査役のレビュー」を含む見出しの節の中だけを見る
+//   2 画面: GitHub の画面でどう見えるかで判断する。表示されない所（HTML コメント）・引用として見える所（コードブロック）は数えない
+//   3 検証結果: vitest・tsc・eslint それぞれに、自分で実行した結果がある（空・「…」・「CI を参照」などは不可）
+//   4 判定: 「承認」の語そのものだけ（否定・保留・差し戻しの語が付けば不可。記号の揺れは許す）
+// 抜け道を塞ぐときは、具体例だけでなく、その原則に当たる別の書き方も洗う。
 
 import { pathToFileURL } from 'node:url';
 
@@ -34,17 +41,31 @@ function isBlank(text) {
 }
 
 /**
+ * HTML コメント（<!-- … -->）を取り除く（PR #5 pr-audit-1 #1）。GitHub は画面に表示しないので、中に書いた記録は数えない。
+ * 1行の中のものも複数行にまたがるものも消す。閉じていない <!-- は、GitHub と同じく本文の最後までを隠す。
+ * 行の数は変えない（中の改行は残す）。
+ */
+function withoutHtmlComments(text) {
+  return text.replace(/<!--[\s\S]*?(?:-->|$)/g, (comment) => comment.replace(/[^\n]/g, ''));
+}
+
+/**
  * コードブロック（``` か ~~~ で囲んだ所）の行を空行に置き換える（audit-1 #5）。
  * 本文に型を引用したブロックの見出しを本物の節と取り違えないため。節全体をブロックに入れても数えない。
+ * ブロックは、開いたときと同じ記号で、長さが同じかそれ以上の行（後ろに文字が無いもの）でだけ閉じる（PR #5 pr-audit-1 #1）。
+ * 閉じていないブロックは、本文の最後まで続く（Markdown と同じ）。
  */
 function withoutCodeBlocks(lines) {
-  let inBlock = false;
+  let fence = null; // 開いているブロックの記号（例: '```'、'~~~~'）。ブロックの外なら null
   return lines.map((line) => {
-    if (/^\s{0,3}(```|~~~)/.test(line)) {
-      inBlock = !inBlock;
-      return '';
+    if (fence === null) {
+      const open = /^\s{0,3}(`{3,}|~{3,})/.exec(line);
+      if (open) fence = open[1];
+      return open ? '' : line;
     }
-    return inBlock ? '' : line;
+    const close = /^\s{0,3}(`{3,}|~{3,})\s*$/.exec(line);
+    if (close && close[1][0] === fence[0] && close[1].length >= fence.length) fence = null;
+    return '';
   });
 }
 
@@ -124,7 +145,9 @@ function verdictText(section) {
  * @returns {string[]}
  */
 export function checkPrBody(body) {
-  const lines = withoutCodeBlocks(String(body ?? '').split(/\r?\n/));
+  // 画面に表示されない所（HTML コメント、コードブロック）は数えない。
+  // 先に HTML コメントを消すので、コードブロックの中の <!-- も消える（厳しい側に倒れるだけなので、そのままにする）。
+  const lines = withoutCodeBlocks(withoutHtmlComments(String(body ?? '')).split(/\r?\n/));
   const section = findReviewSection(lines);
   if (section === null) {
     return ['「監査役のレビュー」を含む見出し（## か ###）がない'];
@@ -144,8 +167,11 @@ export function checkPrBody(body) {
   } else if (verdict.includes('差し戻し')) {
     // 「承認（差し戻しなし）」も落ちる。経緯は判定の欄ではなく「やり取りの要約」に書いてもらう（audit-1 #4）
     problems.push('判定の欄に「差し戻し」の語がある（承認なら判定の欄には「承認」とだけ書き、往復の経緯は「やり取りの要約」へ。承認されていない PR は Draft で出す）');
-  } else if (!/(?<![未非不])承認/.test(verdict)) {
-    problems.push('判定に「承認」がない');
+  } else if (verdict.replace(/[\s\p{P}\p{S}]/gu, '') !== '承認') {
+    // 判定は「承認」の語そのものだけを認める（PR #5 pr-audit-1 #2）。
+    // 空白と記号（`**`・`:`・句読点など）を除いて「承認」に一致しなければ不合格。
+    // 「承認しない」「承認できない」「未承認」「承認待ち」のように、前後に何か付いたものは落ちる。
+    problems.push('判定が「承認」になっていない（判定の欄には「承認」とだけ書く）');
   }
   return problems;
 }
