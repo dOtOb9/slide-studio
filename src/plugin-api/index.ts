@@ -30,11 +30,13 @@ import type { Model } from '../app/model';
 import type { KeyInput, Msg, PluginMsg } from '../app/msg';
 import { imagePathOf, sha256Hex } from '../io/images';
 import { deleteElement, insertElement, setNotes, updateElement } from '../model/commands';
-import { imagePath, isImagePath } from '../model/images';
+import { checkImageFile, extensionOf, imagePath, isImagePath } from '../model/images';
 
 // 1.1: 部品の見た目の約束（共通クラス .button / .icon-button と CSS 変数。README「プラグイン」）を足した
 // 1.2: images/ の画像（Model.images、Msg の ImagesAdded、imagePathOf / sha256Hex / imagePath / isImagePath）を足した
-export const API_VERSION = '1.2';
+// 1.3: 受け取った画像のファイルを確かめる checkImageFile / extensionOf を足した（画像の挿入のプラグインが、
+//      土台と同じ上限・同じ対応形式で断れるように）
+export const API_VERSION = '1.3';
 
 // --- 型 ---------------------------------------------------------------------
 
@@ -84,9 +86,11 @@ export interface Plugin<M extends PluginMsg = PluginMsg> {
 // --- 関数 -------------------------------------------------------------------
 
 export {
+  checkImageFile,
   currentSlide,
   deleteElement,
   edit,
+  extensionOf,
   findElement,
   getPluginState,
   imagePath,
@@ -127,6 +131,11 @@ export const api = {
   sha256Hex,
   imagePath,
   isImagePath,
+  // 受け取ったファイルを確かめる（1.3〜）。手順の 1 と 2 の間で使う:
+  //   checkImageFile(file) … File でない・空・画像でない型・大きすぎる なら理由の文字列（よければ null）
+  //   extensionOf(type)    … images/ に置ける MIME 型なら拡張子（置けない型なら null）
+  checkImageFile,
+  extensionOf,
 };
 
 export type PluginApi = typeof api;

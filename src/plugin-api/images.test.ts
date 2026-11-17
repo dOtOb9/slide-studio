@@ -4,7 +4,17 @@ import { describe, expect, it } from 'vitest';
 import { initModel } from '../app/model';
 import { update } from '../app/update';
 import { parseDeck } from '../model/parse';
-import { api, API_VERSION, imagePath, imagePathOf, isCompatible, isImagePath, sha256Hex } from './index';
+import {
+  api,
+  API_VERSION,
+  checkImageFile,
+  extensionOf,
+  imagePath,
+  imagePathOf,
+  isCompatible,
+  isImagePath,
+  sha256Hex,
+} from './index';
 
 // "abc" の SHA-256（FIPS 180-2 の例）
 const ABC = 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad';
@@ -28,13 +38,24 @@ describe('画像の公開 API', () => {
     expect(m.images[path]).toBe(blob);
   });
 
-  it('外部プラグインに渡す api にも入っていて、版は 1.2', () => {
-    expect(API_VERSION).toBe('1.2');
+  it('受け取ったファイルを確かめる関数（1.3）: 対応する形式なら拡張子、だめなファイルなら理由', () => {
+    expect(extensionOf('image/png')).toBe('png');
+    expect(extensionOf('image/bmp')).toBeNull();
+    expect(checkImageFile(new File(['abc'], 'a.png', { type: 'image/png' }))).toBeNull();
+    expect(checkImageFile(new File([], 'a.png', { type: 'image/png' }))).toMatch(/空/);
+    expect(checkImageFile('a.png')).toMatch(/ファイルではありません/);
+  });
+
+  it('外部プラグインに渡す api にも入っていて、版は 1.3', () => {
+    expect(API_VERSION).toBe('1.3');
+    expect(isCompatible('1.3')).toBe(true);
     expect(isCompatible('1.2')).toBe(true);
     expect(isCompatible('1.1')).toBe(true);
     expect(api.imagePathOf).toBe(imagePathOf);
     expect(api.sha256Hex).toBe(sha256Hex);
     expect(api.imagePath).toBe(imagePath);
     expect(api.isImagePath).toBe(isImagePath);
+    expect(api.checkImageFile).toBe(checkImageFile);
+    expect(api.extensionOf).toBe(extensionOf);
   });
 });
