@@ -55,6 +55,7 @@ deck.html ─parse─▶ Deck（Model の一部）─serialize─▶ deck.html
 | 共通の道具 | `app/helpers.ts` | `edit`（履歴に積む）、`withNewIds`、`currentSlide`、`isBusy` など。update と、`plugin-api` 経由で各プラグインが使う |
 
 1. **`src/model/` と `src/app/` は React に依存しない純粋な TypeScript。** ロジックはここに置き、単体テストを書く。`update` は Msg を順に流すだけでテストできる。
+   io/ は外の世界とのやり取りだけにし、「どれを書くか・どう選ぶか」の判断は model/ の純粋な関数（例: `imagesToWrite`）にしてテストする（Step 8 audit-1 #2）。
 2. **状態を変える唯一の入口は `dispatch(msg)`。** 新しい操作は「Msg を足す → update に case を足す → view から送る」の順で作る。update の `switch` は網羅チェック（`assertNever`）付きなので、扱い忘れは型エラーになる（土台の Msg について。プラグインの Msg は実行時に入るので、各プラグインの中でだけ網羅チェックが効く）。
 3. **view に判断を書かない。** 「選択中なら〜」のような分岐は update に置く。view が持ってよいのは、見た目だけの一時状態（画面サイズ、hover）と DOM への参照だけ。
 4. **Deck は書き換えずに新しく作る（イミュータブル）。** 編集は `model/commands.ts` の関数で行う。変更していないスライドは同じオブジェクトのまま共有されるので、履歴は古い Deck を取っておくだけで作れ、「どのスライドが変わったか」も参照の比較でわかる。
@@ -189,6 +190,11 @@ Edge が IPv6（`::1`）だけで待ち受けることがある。つながら�
 ```
 msedge --headless=new --remote-debugging-port=9333 --user-data-dir=<一時ディレクトリ> about:blank
 ```
+
+ファイル・フォルダのピッカーを使う機能も、ヘッドレスで確かめられる（Step 8 audit-1 #3）:
+`page.addInitScript` で `showOpenFilePicker` / `showSaveFilePicker` / `showDirectoryPicker` を、`navigator.storage.getDirectory()`（OPFS）で作った
+本物のハンドルを返す関数に差し替える。差し替えはアプリのスクリプトより先に入れる（`io/file.ts` の `canWriteImageFiles` などは読み込んだときに決まるため）。
+`alert` / `confirm` は `page.on('dialog')` で受ける（または同じ addInitScript で差し替える）。スクリプトは一時ディレクトリに置き、リポジトリには入れない。
 
 ## 役割（オーナーの決定 2026-11-17）
 
