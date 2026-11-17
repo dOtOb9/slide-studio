@@ -1,7 +1,3 @@
-# PR の本文に「監査役のレビュー」の記録（自分で実行した検証結果と判定）があるかを確かめる（PR #4 再発防止）。
-# 検査の中身は scripts/check-pr-body.mjs（テストは scripts/check-pr-body.test.mjs）。書き方は AGENTS.md「PR の本文」。
-# 本文を直したとき（edited）にも走り直すので、落ちたら本文を直せばよい（コミットし直す必要はない）。
-
 name: PR review record
 
 on:
@@ -13,19 +9,15 @@ permissions:
 
 jobs:
   check-body:
-    # Draft の PR は対象外（エスカレーションでは、レビューが終わる前に Draft で出すことがあるため）。
-    # Draft から外したとき（ready_for_review）に走る。
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Node を用意する（依存を使わない検査なので npm ci はしない）
+        uses: actions/setup-node@v4
         with:
           node-version: 22
-      # 依存を使わないスクリプトなので npm ci はしない。
-      - name: PR の本文を検査する
-        # 本文は env で渡す。run の中に ${{ github.event.pull_request.body }} を直接書くと、
-        # 本文がシェルのスクリプトとして埋め込まれ、本文に書いた $(...) などが実行されてしまう（スクリプト注入）。
+      - name: PR の本文を検査する（本文は env で渡す。run に直接埋め込むと本文の $(...) が実行されるスクリプト注入になる）
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: node scripts/check-pr-body.mjs

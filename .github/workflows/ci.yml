@@ -1,6 +1,3 @@
-# テストの CI: 型チェック → lint → 単体テスト。
-# 今はリリースしないので、インストーラーの作成やデプロイは入れていない（後で足す）。
-
 name: CI
 
 on:
@@ -13,9 +10,6 @@ permissions:
 
 jobs:
   test:
-    # 同じコミットを2回走らせない。
-    # 同じリポジトリのブランチからの PR は、push の実行が同じコミットに付いて PR にも表示されるので、
-    # pull_request の方は飛ばす（skipped は失敗扱いにならない）。フォークからの PR だけ pull_request で走らせる。
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     steps:
