@@ -148,12 +148,35 @@ export function updatePlugin(model: Model, msg: PluginMsg): Model {
 }
 
 /**
+ * Model の欄の一覧（Step 8 再発防止 / audit-1 #4）。
+ * Record<keyof Model, true> なので、Model に欄を足してここに書き忘れると型エラーになる。
+ * looksLikeModel はこの一覧の欄がすべて「ある」ことを確かめる（...model を展開せずに作った Model を断るため）
+ */
+export const MODEL_KEYS: Record<keyof Model, true> = {
+  deck: true,
+  fileName: true,
+  savedDeck: true,
+  nextId: true,
+  current: true,
+  selectedId: true,
+  editingId: true,
+  boxes: true,
+  gesture: true,
+  history: true,
+  plugins: true,
+  images: true,
+  canReadFolder: true,
+};
+
+/**
  * Model らしい形か（最低限の確認）。外部プラグインの update が {} などを返すと、
  * 画面のあちこちが model.deck や model.history を読んで落ちるため。
- * images も確かめる（...model を展開せずに作った Model だと、ツールバーと表示が images を読んで落ちるため。Step 8 audit-1 #4）
+ * すべての欄があることと、画面が中を読むオブジェクトの欄（deck・history・images）がオブジェクトであることを確かめる。
+ * 欄の値の型までは確かめない（images が Blob の表か、などは見ない）
  */
 function looksLikeModel(value: unknown): value is Model {
   if (!value || typeof value !== 'object') return false;
+  if (!Object.keys(MODEL_KEYS).every((key) => key in value)) return false;
   const m = value as Partial<Model>;
   return (
     typeof m.deck === 'object' &&

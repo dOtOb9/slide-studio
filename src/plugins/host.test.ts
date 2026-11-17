@@ -9,6 +9,7 @@ import sample from '../samples/sample-deck.html?raw';
 import {
   checkMsgFromPlugin,
   listPlugins,
+  MODEL_KEYS,
   pluginFromModule,
   registerPlugin,
   setPluginEnabled,
@@ -158,6 +159,32 @@ describe('Msg の振り分け', () => {
     );
     const m0 = setup();
     expect(update(m0, { type: 'bad/Thing' })).toBe(m0);
+  });
+
+  // Step 8 再発防止 / audit-1 #4: Model のどの欄が抜けても断る。MODEL_KEYS は型で Model の欄を網羅しているので、
+  // Model に欄を足すと、このテストもその欄を自動で確かめる
+  it.each(Object.keys(MODEL_KEYS))('update が欄 %s の無い Model を返したら断り、Model はそのまま', (key) => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    registerPlugin(
+      {
+        name: 'bad',
+        apiVersion: '1.0',
+        update: (m: Model) => {
+          const copy: Record<string, unknown> = { ...m };
+          delete copy[key];
+          return copy as unknown as Model;
+        },
+      },
+      'external',
+    );
+    const m0 = setup();
+    expect(Object.keys(m0).sort()).toEqual(Object.keys(MODEL_KEYS).sort()); // initModel が全部の欄を作っている
+    expect(update(m0, { type: 'bad/Thing' })).toBe(m0);
+  });
+
+  it('全部の欄がある Model なら受け入れる（抜けた欄のテストが「何でも断る」で通っていないことの確認）', () => {
+    registerPlugin({ name: 'ok', apiVersion: '1.0', update: (m: Model) => ({ ...m, current: 1 }) }, 'external');
+    expect(update(setup(), { type: 'ok/Thing' }).current).toBe(1);
   });
 
   it('別のファイルを開いても、プラグイン自身の状態は残る', () => {
