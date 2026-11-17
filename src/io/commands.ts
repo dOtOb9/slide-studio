@@ -37,7 +37,7 @@ export async function grantFolderAccess() {
     // 押した人に、読めなかった画像があることを知らせる（理由の一覧はコンソール）
     if (problems.length > 0) window.alert(`images/ から読めなかった画像が ${problems.length} 件あります（詳しくはコンソール）`);
   } catch (e) {
-    report('フォルダを読み込む', e);
+    report('画像の読み込みが', e);
   }
 }
 
