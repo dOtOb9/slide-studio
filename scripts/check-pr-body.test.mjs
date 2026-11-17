@@ -138,8 +138,15 @@ vitest: 152 passed / tsc: エラーなし / eslint: エラーなし
     expect(checkPrBody(replaced('### 判定\n承認', '### 判定\n承認 | 差し戻し'))).toHaveLength(1);
   });
 
-  it('判定が「未承認」なら不合格', () => {
-    expect(checkPrBody(replaced('### 判定\n承認', '### 判定\n未承認'))).toHaveLength(1);
+  // PR #5 pr-audit-1 #2: 判定は「承認」の語そのものだけ。前にも後ろにも否定や語が付けば落ちる
+  it.each([['未承認'], ['承認しない'], ['承認できない'], ['承認待ち'], ['承認しました（未検証）']])('判定が「%s」なら不合格', (value) => {
+    const problems = checkPrBody(replaced('### 判定\n承認', `### 判定\n${value}`));
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain('「承認」とだけ書く');
+  });
+
+  it.each([['承認。'], ['**承認**'], ['「承認」']])('判定が「%s」（記号の揺れだけ）なら合格', (value) => {
+    expect(checkPrBody(replaced('### 判定\n承認', `### 判定\n${value}`))).toEqual([]);
   });
 
   it('判定の見出しの下が空なら不合格', () => {
