@@ -1,18 +1,10 @@
-// デッキを編集する関数群。
-// どれも「古い Deck を受け取り、新しい Deck を返す」。元のデータは書き換えない（イミュータブル）。
-//   - React は「オブジェクトが別物になったか」で変更を検知するので、再描画が確実に起きる
-//   - 古い Deck がそのまま残るので、元に戻す（app/update.ts）は古い Deck を取っておくだけで作れる
-//   - 何も変わらなかったときは、元の Deck をそのまま返す。
-//     「参照が同じ = 変更なし」と判断できるので、空の履歴を積まずに済む
-
 import type { Deck, Rect, Slide, SlideElement } from './types';
 
 export interface ElementPatch {
-  rect?: Partial<Rect>; // 変更する位置・サイズだけを渡す（残りはそのまま）
+  rect?: Partial<Rect>;
   html?: string;
 }
 
-/** 指定したスライドだけを差し替えた新しい Deck を返す。スライドが変わらなければ元の Deck を返す */
 function mapSlide(deck: Deck, slideId: string, fn: (slide: Slide) => Slide): Deck {
   let changed = false;
   const slides = deck.slides.map((s) => {
@@ -24,11 +16,7 @@ function mapSlide(deck: Deck, slideId: string, fn: (slide: Slide) => Slide): Dec
   return changed ? { ...deck, slides } : deck;
 }
 
-/**
- * 位置は整数 px に丸める（ファイルに 123.4567px のような値が残らないように）。
- * NaN や Infinity は計算の不具合なので、ファイルを壊さないよう捨てる。
- */
-function roundRect(rect: Partial<Rect>): Partial<Rect> {
+function toWholePxDroppingNonFinite(rect: Partial<Rect>): Partial<Rect> {
   const out: Partial<Rect> = {};
   for (const [k, v] of Object.entries(rect) as [keyof Rect, number][]) {
     if (Number.isFinite(v)) out[k] = Math.round(v);
@@ -45,9 +33,10 @@ export function updateElement(deck: Deck, slideId: string, elementId: string, pa
     let changed = false;
     const elements = slide.elements.map((el) => {
       if (el.id !== elementId) return el;
-      const rect = patch.rect ? { ...el.rect, ...roundRect(patch.rect) } : el.rect;
+      const rect = patch.rect ? { ...el.rect, ...toWholePxDroppingNonFinite(patch.rect) } : el.rect;
       const html = patch.html ?? el.html;
-      if (sameRect(rect, el.rect) && html === el.html) return el; // 丸めた結果が同じなら変更なし
+      const unchangedAfterRounding = sameRect(rect, el.rect) && html === el.html;
+      if (unchangedAfterRounding) return el;
       changed = true;
       return { ...el, rect, html };
     });
@@ -55,15 +44,9 @@ export function updateElement(deck: Deck, slideId: string, elementId: string, pa
   });
 }
 
-// --- スライドの操作 -----------------------------------------------------------
-// 新しい id が必要な操作は、id を作る関数 newId を引数で受け取る。
-// こうしておくと、どんな id になるかを呼び出し側（update）が決められ、テストで結果を予測できる。
+export const ADD_SLIDE_AT_TOP = -1;
 
-/**
- * index の後ろに、指定したレイアウトの新しいスライドを挿入する（index = -1 なら先頭）。
- * レイアウトの各プレースホルダーに対応する、中身が空の要素を用意する（PowerPoint と同じ）。
- */
-export function addSlide(deck: Deck, index: number, layoutName: string, newId: () => string): Deck {
+export function addSlide(deck: Deck, afterIndex: number, layoutName: string, newId: () => string): Deck {
   const layout = deck.layouts.find((l) => l.name === layoutName);
   const slide: Slide = {
     id: newId(),
@@ -80,11 +63,10 @@ export function addSlide(deck: Deck, index: number, layoutName: string, newId: (
     })),
   };
   const slides = [...deck.slides];
-  slides.splice(index + 1, 0, slide);
+  slides.splice(afterIndex + 1, 0, slide);
   return { ...deck, slides };
 }
 
-/** index のスライドを複製し、すぐ後ろに挿入する。要素の id はすべて新しくする */
 export function duplicateSlide(deck: Deck, index: number, newId: () => string): Deck {
   const src = deck.slides[index];
   if (!src) return deck;
@@ -103,9 +85,9 @@ export function deleteSlide(deck: Deck, index: number): Deck {
   return { ...deck, slides: deck.slides.filter((_, i) => i !== index) };
 }
 
-/** from のスライドを取り出して、to の位置に入れる（to は取り出した後の並びでの位置） */
-export function moveSlide(deck: Deck, from: number, to: number): Deck {
+export function moveSlide(deck: Deck, from: number, toIndexAfterRemoval: number): Deck {
   const n = deck.slides.length;
+  const to = toIndexAfterRemoval;
   if (from === to || from < 0 || from >= n || to < 0 || to >= n) return deck;
   const slides = [...deck.slides];
   const [moved] = slides.splice(from, 1);
@@ -113,17 +95,14 @@ export function moveSlide(deck: Deck, from: number, to: number): Deck {
   return { ...deck, slides };
 }
 
-/** スライドの発表者ノートを書き換える。変わらなければ元の Deck を返す */
 export function setNotes(deck: Deck, slideId: string, notes: string): Deck {
   return mapSlide(deck, slideId, (slide) => (slide.notes === notes ? slide : { ...slide, notes }));
 }
 
-/** スライドの最前面に要素を追加する（図形や画像の挿入に使う） */
 export function insertElement(deck: Deck, slideId: string, element: SlideElement): Deck {
   return mapSlide(deck, slideId, (slide) => ({ ...slide, elements: [...slide.elements, element] }));
 }
 
-/** 中身が空か（テキストも画像なども無い）。空のプレースホルダーには入力を促す表示を出す */
 export function isEmptyHtml(html: string): boolean {
   return html.replace(/<br\s*\/?>/gi, '').replace(/&nbsp;/g, '').trim() === '';
 }

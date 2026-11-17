@@ -1,6 +1,3 @@
-// 同梱プラグイン「図形・テキストボックスの挿入」。plugins/builtin.ts に登録する。
-// プラグインの手本: 純粋な部分（update.ts）と部品（ShapesToolbar.tsx）を1つの Plugin にまとめる。
-
 import type { Plugin } from '../../plugin-api';
 import { reactView } from '../../plugin-api/react';
 import { ShapesToolbar } from './ShapesToolbar';

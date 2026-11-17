@@ -1,5 +1,3 @@
-// 大きさと置き場所の計算（純粋な関数）のテスト。update を通さないので、プラグインの登録は要らない。
-
 import { describe, expect, it } from 'vitest';
 import { fitSize, placeAt } from './layout';
 

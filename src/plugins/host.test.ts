@@ -20,7 +20,6 @@ import {
 
 const setup = () => initModel(parseDeck(sample), 't.html');
 
-/** テスト用のプラグイン: 'counter/Added' で自分の状態の数を1増やす。'+' キーで同じことをする */
 type CounterMsg = { type: 'counter/Added' } | { type: 'counter/Broken' };
 const counter: Plugin<CounterMsg> = {
   name: 'counter',
@@ -47,9 +46,15 @@ describe('isCompatible（API の版の互換性）', () => {
   it('メジャーが同じで、マイナーがアプリ以下なら動く', () => {
     expect(isCompatible('1.0', '1.2')).toBe(true);
     expect(isCompatible('1.2', '1.2')).toBe(true);
-    expect(isCompatible('1.3', '1.2')).toBe(false); // アプリより新しい API を前提にしている
     expect(isCompatible('2.0', '1.2')).toBe(false);
-    expect(isCompatible('1', '1.2')).toBe(false); // 形が違う
+  });
+
+  it('アプリより新しいマイナーを前提にしたプラグインは動かない', () => {
+    expect(isCompatible('1.3', '1.2')).toBe(false);
+  });
+
+  it('「メジャー.マイナー」の形でない版は動かない', () => {
+    expect(isCompatible('1', '1.2')).toBe(false);
   });
 });
 
@@ -73,16 +78,12 @@ describe('registerPlugin', () => {
     expect(() => registerPlugin({ name: 'a', apiVersion: '9.0' }, 'external')).toThrow('apiVersion（9.0）');
     expect(() => registerPlugin({ name: 'a', apiVersion: '1.0', update: 1 }, 'external')).toThrow('update が関数ではありません');
     expect(() => registerPlugin({ name: 'a', apiVersion: '1.0', toolbar: {} }, 'external')).toThrow('mount がありません');
-    // 一覧の画面にそのまま描くので、文字列でないと画面全体が落ちる（Step 6 audit-1 #1）
     expect(() => registerPlugin({ name: 'a', apiVersion: '1.0', title: { x: 1 } }, 'external')).toThrow('title が文字列ではありません');
     expect(() => registerPlugin({ name: 'b', apiVersion: '1.0', description: 42 }, 'external')).toThrow('description が文字列ではありません');
     expect(listPlugins()).toEqual([]);
   });
 
-  // Step 6 の再発防止: Plugin の欄はすべて外部から来る値。欄ごとに「不正な値」を1つ書き、登録で断られることを確かめる。
-  // Record<keyof Plugin, …> なので、Plugin に欄を足すとここに書かないと型エラーになり、
-  // 書けば validatePlugin が確かめていない限りテストが落ちる（確かめ忘れに気づける）。
-  const badFields: Record<keyof Plugin, { value: unknown; message: string }> = {
+  const badValueForEveryPluginFieldOrTypeError: Record<keyof Plugin, { value: unknown; message: string }> = {
     name: { value: 'Bad Name', message: 'プラグイン名' },
     apiVersion: { value: 1, message: 'apiVersion' },
     title: { value: { x: 1 }, message: 'title が文字列ではありません' },
@@ -94,10 +95,11 @@ describe('registerPlugin', () => {
   it('登録簿の Plugin（ReceivedPlugin）は、関数の欄の戻り値が unknown（確かめずに使うと型エラー。Step 7a audit-1 #2）', () => {
     expectTypeOf<ReturnType<NonNullable<ReceivedPlugin['update']>>>().toBeUnknown();
     expectTypeOf<ReturnType<NonNullable<ReceivedPlugin['onKey']>>>().toBeUnknown();
-    expectTypeOf<ReceivedPlugin['name']>().toEqualTypeOf<string>(); // 関数でない欄はそのまま
+    const nonFunctionFieldsStayAsIs = expectTypeOf<ReceivedPlugin['name']>();
+    nonFunctionFieldsStayAsIs.toEqualTypeOf<string>();
   });
 
-  it.each(Object.entries(badFields))('欄 %s に不正な値があれば断る', (key, { value, message }) => {
+  it.each(Object.entries(badValueForEveryPluginFieldOrTypeError))('欄 %s に不正な値があれば断る（Plugin に欄を足すと、ここに書くまで型エラー。Step 6 の再発防止）', (key, { value, message }) => {
     expect(() => registerPlugin({ name: 'a', apiVersion: '1.0', [key]: value }, 'external')).toThrow(message);
     expect(listPlugins()).toEqual([]);
   });
@@ -161,9 +163,16 @@ describe('Msg の振り分け', () => {
     expect(update(m0, { type: 'bad/Thing' })).toBe(m0);
   });
 
-  // Step 8 再発防止 / audit-1 #4: Model のどの欄が抜けても断る。MODEL_KEYS は型で Model の欄を網羅しているので、
-  // Model に欄を足すと、このテストもその欄を自動で確かめる
-  it.each(Object.keys(MODEL_KEYS))('update が欄 %s の無い Model を返したら断り、Model はそのまま', (key) => {
+  it('initModel が MODEL_KEYS のすべての欄を作っている（Model に欄を足すと、下のテストがその欄も確かめる）', () => {
+    expect(Object.keys(setup()).sort()).toEqual(Object.keys(MODEL_KEYS).sort());
+  });
+
+  it('欄の値の型までは確かめない（images が Blob の表かなどは見ない。画面が中を読む deck・history・images がオブジェクトであることだけ）', () => {
+    registerPlugin({ name: 'loose', apiVersion: '1.0', update: (m: Model) => ({ ...m, images: { 'images/a.png': 'not a blob' } }) }, 'external');
+    expect(update(setup(), { type: 'loose/Thing' }).images).toEqual({ 'images/a.png': 'not a blob' });
+  });
+
+  it.each(Object.keys(MODEL_KEYS))('update が欄 %s の無い Model を返したら断り、Model はそのまま（Step 8 audit-1 #4）', (key) => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     registerPlugin(
       {
@@ -178,7 +187,6 @@ describe('Msg の振り分け', () => {
       'external',
     );
     const m0 = setup();
-    expect(Object.keys(m0).sort()).toEqual(Object.keys(MODEL_KEYS).sort()); // initModel が全部の欄を作っている
     expect(update(m0, { type: 'bad/Thing' })).toBe(m0);
   });
 

@@ -1,5 +1,3 @@
-// 受け取ったファイルを挿入できる形にする処理（部品の側）のテスト。
-// 自分のプラグインを先に import して登録する（insertImageFiles の結果を土台の update に流して確かめるため）。
 import { images } from './plugin';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -19,8 +17,7 @@ afterEach(() => {
 
 const png = (name: string, content = name) => new File([content], name, { type: 'image/png' });
 
-/** jsdom は画像を読めないので、測る関数を差し替える（名前に bad が入っていたら測れない画像とみなす） */
-const deps: PrepareDeps = {
+const depsSinceJsdomCannotReadImagesBadInNameMeansUnmeasurable: PrepareDeps = {
   measure: async (blob) => ((blob as File).name.includes('bad') ? null : { width: 400, height: 300 }),
   pathOf: async (blob) => `images/${(blob as File).name.replace(/\W/g, '').padEnd(64, '0')}.png`,
 };
@@ -53,10 +50,10 @@ describe('rejectReason（受け取ったファイルを確かめる）', () => {
 describe('prepareImages', () => {
   it('入れられるものと断るもの（理由つき）に分ける。1つが不正でもほかは入れ、並びは受け取った順', async () => {
     const throwing: PrepareDeps = {
-      ...deps,
+      ...depsSinceJsdomCannotReadImagesBadInNameMeansUnmeasurable,
       pathOf: async (blob) => {
         if ((blob as File).name === 'boom.png') throw new Error('壊れた');
-        return deps.pathOf(blob);
+        return depsSinceJsdomCannotReadImagesBadInNameMeansUnmeasurable.pathOf(blob);
       },
     };
     const { ready, rejected } = await prepareImages(
@@ -75,15 +72,14 @@ describe('prepareImages', () => {
   });
 
   it('パスを作れない（対応しない型）なら断る', async () => {
-    const { ready, rejected } = await prepareImages([png('a.png')], { ...deps, pathOf: async () => null });
+    const { ready, rejected } = await prepareImages([png('a.png')], { ...depsSinceJsdomCannotReadImagesBadInNameMeansUnmeasurable, pathOf: async () => null });
     expect(ready).toEqual([]);
     expect(rejected).toEqual([{ name: 'a.png', reason: '対応していない形式です' }]);
   });
 });
 
 describe('insertImageFiles（ボタン・貼り付け・ドロップの共通の手順）', () => {
-  /** 送られた Msg を記録しながら、土台の update に流す */
-  function runner() {
+  function recordingDispatchRunningBaseUpdate() {
     let model: Model = update(initModel(parseDeck(sample), 't.html'), { type: 'SlideSelected', index: 1 });
     const sent: Msg[] = [];
     const dispatch = (msg: Msg) => {
@@ -94,10 +90,10 @@ describe('insertImageFiles（ボタン・貼り付け・ドロップの共通の
   }
 
   it('ImagesAdded → images/Inserted の順に送り、画像が置かれる。断ったファイルは知らせる', async () => {
-    const r = runner();
+    const r = recordingDispatchRunningBaseUpdate();
     const notify = vi.fn();
     const before = r.model;
-    await insertImageFiles([png('a.png'), png('bad.png'), png('c.png')], r.dispatch, deps, notify);
+    await insertImageFiles([png('a.png'), png('bad.png'), png('c.png')], r.dispatch, depsSinceJsdomCannotReadImagesBadInNameMeansUnmeasurable, notify);
 
     expect(r.sent.map((m) => m.type)).toEqual(['ImagesAdded', 'images/Inserted']);
     const els = r.model.deck.slides[1].elements.slice(-2);
@@ -108,17 +104,17 @@ describe('insertImageFiles（ボタン・貼り付け・ドロップの共通の
   });
 
   it('全部断ったら Msg は送らず、知らせるだけ', async () => {
-    const r = runner();
+    const r = recordingDispatchRunningBaseUpdate();
     const notify = vi.fn();
-    await insertImageFiles([new File([], 'empty.png', { type: 'image/png' })], r.dispatch, deps, notify);
+    await insertImageFiles([new File([], 'empty.png', { type: 'image/png' })], r.dispatch, depsSinceJsdomCannotReadImagesBadInNameMeansUnmeasurable, notify);
     expect(r.sent).toEqual([]);
     expect(notify).toHaveBeenCalledTimes(1);
   });
 
   it('全部入れられたら知らせない', async () => {
-    const r = runner();
+    const r = recordingDispatchRunningBaseUpdate();
     const notify = vi.fn();
-    await insertImageFiles([png('a.png')], r.dispatch, deps, notify);
+    await insertImageFiles([png('a.png')], r.dispatch, depsSinceJsdomCannotReadImagesBadInNameMeansUnmeasurable, notify);
     expect(notify).not.toHaveBeenCalled();
   });
 });

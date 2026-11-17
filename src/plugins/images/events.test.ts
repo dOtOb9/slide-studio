@@ -1,5 +1,3 @@
-// 貼り付け・ドロップの受け付け（部品の側）のテスト。
-// 自分のプラグインを先に import して登録する（部品の mount / unmount も確かめるため）。
 import { images } from './plugin';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -17,8 +15,7 @@ registerPlugin(images, 'builtin');
 const png = (name: string) => new File([name], name, { type: 'image/png' });
 const fakeInsert = () => vi.fn<(files: File[], dispatch: PluginContext['dispatch']) => Promise<void>>(async () => {});
 
-/** 土台の update に流す最小の PluginContext */
-function context(initial?: Model) {
+function minimalContextRunningBaseUpdate(initial?: Model) {
   let model: Model =
     initial ?? update(initModel(parseDeck(sample), 't.html'), { type: 'SlideSelected', index: 1 });
   const ctx: PluginContext = {
@@ -31,14 +28,13 @@ function context(initial?: Model) {
   return { ctx, setModel: (m: Model) => (model = m) };
 }
 
-/** jsdom には DataTransfer が無いので、使う欄だけを持つ値で代わりにする */
-function transfer(files: File[], types = files.length > 0 ? ['Files'] : ['text/plain']) {
+function dataTransferStubSinceJsdomHasNone(files: File[], types = files.length > 0 ? ['Files'] : ['text/plain']) {
   return { files, items: [], types, dropEffect: 'none' } as unknown as DataTransfer;
 }
 
 function paste(target: EventTarget, files: File[]) {
   const e = new Event('paste', { bubbles: true, cancelable: true });
-  Object.defineProperty(e, 'clipboardData', { value: transfer(files) });
+  Object.defineProperty(e, 'clipboardData', { value: dataTransferStubSinceJsdomHasNone(files) });
   target.dispatchEvent(e);
   return e;
 }
@@ -55,7 +51,6 @@ let canvas: HTMLElement;
 let outside: HTMLElement;
 
 beforeEach(() => {
-  // 土台の作業領域（<main class="stage">）とその中のキャンバス、作業領域の外の場所
   stage = document.createElement('main');
   stage.className = 'stage';
   canvas = document.createElement('div');
@@ -78,8 +73,8 @@ describe('filesOf / isFileDrag', () => {
     ];
     expect(filesOf({ files: [], items, types: [] } as unknown as DataTransfer)).toEqual([f]);
     expect(filesOf(null)).toEqual([]);
-    expect(isFileDrag(transfer([f]))).toBe(true);
-    expect(isFileDrag(transfer([]))).toBe(false);
+    expect(isFileDrag(dataTransferStubSinceJsdomHasNone([f]))).toBe(true);
+    expect(isFileDrag(dataTransferStubSinceJsdomHasNone([]))).toBe(false);
     expect(isFileDrag(null)).toBe(false);
   });
 });
@@ -87,7 +82,7 @@ describe('filesOf / isFileDrag', () => {
 describe('貼り付け', () => {
   it('画像があれば横取りして挿入する（ブラウザの既定の動作は止める）', () => {
     const insert = fakeInsert();
-    const stop = listenPasteAndDrop(context().ctx, insert);
+    const stop = listenPasteAndDrop(minimalContextRunningBaseUpdate().ctx, insert);
     const f = png('a.png');
     const e = paste(canvas, [f]);
     expect(insert).toHaveBeenCalledWith([f], expect.any(Function));
@@ -97,7 +92,7 @@ describe('貼り付け', () => {
 
   it('画像が無い（文字だけ・画像でないファイルだけ）なら何もしない', () => {
     const insert = fakeInsert();
-    const stop = listenPasteAndDrop(context().ctx, insert);
+    const stop = listenPasteAndDrop(minimalContextRunningBaseUpdate().ctx, insert);
     expect(paste(canvas, []).defaultPrevented).toBe(false);
     expect(paste(canvas, [new File(['x'], 'a.txt', { type: 'text/plain' })]).defaultPrevented).toBe(false);
     expect(insert).not.toHaveBeenCalled();
@@ -106,15 +101,15 @@ describe('貼り付け', () => {
 
   it('テキスト編集中・入力欄・contentEditable への貼り付けはブラウザに任せる', () => {
     const insert = fakeInsert();
-    const { ctx, setModel } = context();
+    const { ctx, setModel } = minimalContextRunningBaseUpdate();
     const stop = listenPasteAndDrop(ctx, insert);
 
     const textarea = document.createElement('textarea');
     const input = document.createElement('input');
     const editable = document.createElement('div');
     editable.contentEditable = 'true';
-    // jsdom は isContentEditable を実装していないので、ブラウザと同じ値にする
-    Object.defineProperty(editable, 'isContentEditable', { value: true });
+    const jsdomLacksIsContentEditable = { value: true };
+    Object.defineProperty(editable, 'isContentEditable', jsdomLacksIsContentEditable);
     outside.append(textarea, input, editable);
     for (const target of [textarea, input, editable]) expect(paste(target, [png('a.png')]).defaultPrevented).toBe(false);
 
@@ -129,7 +124,7 @@ describe('貼り付け', () => {
 
   it('スライドが 0 枚なら入れない', () => {
     const insert = fakeInsert();
-    const stop = listenPasteAndDrop(context(initModel(parseDeck('<body></body>'), 'e.html')).ctx, insert);
+    const stop = listenPasteAndDrop(minimalContextRunningBaseUpdate(initModel(parseDeck('<body></body>'), 'e.html')).ctx, insert);
     expect(paste(canvas, [png('a.png')]).defaultPrevented).toBe(false);
     expect(insert).not.toHaveBeenCalled();
     stop();
@@ -139,11 +134,11 @@ describe('貼り付け', () => {
 describe('ドロップ', () => {
   it('作業領域にファイルを落とすと挿入する。ドラッグ中は作業領域に色の面を重ねる', () => {
     const insert = fakeInsert();
-    const stop = listenPasteAndDrop(context().ctx, insert);
+    const stop = listenPasteAndDrop(minimalContextRunningBaseUpdate().ctx, insert);
     const highlight = document.querySelector<HTMLElement>('.images-drop-highlight')!;
     expect(highlight.hidden).toBe(true);
 
-    const data = transfer([png('a.png')]);
+    const data = dataTransferStubSinceJsdomHasNone([png('a.png')]);
     expect(drag('dragover', canvas, data).defaultPrevented).toBe(true);
     expect(data.dropEffect).toBe('copy');
     expect(highlight.hidden).toBe(false);
@@ -156,19 +151,20 @@ describe('ドロップ', () => {
   });
 
   it('作業領域から出たら色の面を消す', () => {
-    const stop = listenPasteAndDrop(context().ctx, fakeInsert());
+    const stop = listenPasteAndDrop(minimalContextRunningBaseUpdate().ctx, fakeInsert());
     const highlight = document.querySelector<HTMLElement>('.images-drop-highlight')!;
-    drag('dragover', canvas, transfer([png('a.png')]));
+    drag('dragover', canvas, dataTransferStubSinceJsdomHasNone([png('a.png')]));
     expect(highlight.hidden).toBe(false);
-    window.dispatchEvent(new Event('dragleave')); // relatedTarget なし = ウィンドウの外へ
+    const leftWindowSoNoRelatedTarget = new Event('dragleave');
+    window.dispatchEvent(leftWindowSoNoRelatedTarget);
     expect(highlight.hidden).toBe(true);
     stop();
   });
 
   it('作業領域の外に落としたら入れないが、ブラウザがファイルを開く既定の動作は止める', () => {
     const insert = fakeInsert();
-    const stop = listenPasteAndDrop(context().ctx, insert);
-    const data = transfer([png('a.png')]);
+    const stop = listenPasteAndDrop(minimalContextRunningBaseUpdate().ctx, insert);
+    const data = dataTransferStubSinceJsdomHasNone([png('a.png')]);
     expect(drag('dragover', outside, data).defaultPrevented).toBe(true);
     expect(data.dropEffect).toBe('none');
     expect(drag('drop', outside, data).defaultPrevented).toBe(true);
@@ -178,8 +174,8 @@ describe('ドロップ', () => {
 
   it('ファイル以外（テキストなど）のドラッグ・ドロップは無視し、邪魔もしない', () => {
     const insert = fakeInsert();
-    const stop = listenPasteAndDrop(context().ctx, insert);
-    const text = transfer([]);
+    const stop = listenPasteAndDrop(minimalContextRunningBaseUpdate().ctx, insert);
+    const text = dataTransferStubSinceJsdomHasNone([]);
     expect(drag('dragover', canvas, text).defaultPrevented).toBe(false);
     expect(drag('drop', canvas, text).defaultPrevented).toBe(false);
     expect(insert).not.toHaveBeenCalled();
@@ -188,11 +184,11 @@ describe('ドロップ', () => {
 
   it('テキスト編集中は入れない', () => {
     const insert = fakeInsert();
-    const { ctx, setModel } = context();
+    const { ctx, setModel } = minimalContextRunningBaseUpdate();
     const m = ctx.getModel();
     setModel(update(m, { type: 'EditRequested', id: m.deck.slides[1].elements[0].id }));
     const stop = listenPasteAndDrop(ctx, insert);
-    const data = transfer([png('a.png')]);
+    const data = dataTransferStubSinceJsdomHasNone([png('a.png')]);
     drag('dragover', canvas, data);
     expect(data.dropEffect).toBe('none');
     drag('drop', canvas, data);
@@ -204,28 +200,31 @@ describe('ドロップ', () => {
 describe('登録と片付け', () => {
   it('片付けたら、貼り付け・ドロップに反応せず、色の面も消える', () => {
     const insert = fakeInsert();
-    const stop = listenPasteAndDrop(context().ctx, insert);
+    const stop = listenPasteAndDrop(minimalContextRunningBaseUpdate().ctx, insert);
     stop();
     expect(document.querySelector('.images-drop-highlight')).toBeNull();
     expect(paste(canvas, [png('a.png')]).defaultPrevented).toBe(false);
-    expect(drag('drop', canvas, transfer([png('a.png')])).defaultPrevented).toBe(false);
+    expect(drag('drop', canvas, dataTransferStubSinceJsdomHasNone([png('a.png')])).defaultPrevented).toBe(false);
     expect(insert).not.toHaveBeenCalled();
   });
 
   it('プラグインの部品の mount で受け付けを始め、unmount（一覧で無効にしたとき）で必ず外す', async () => {
-    // 挿入まで進むと jsdom では画像を読めず断られるので、知らせる経路を黙らせておく
-    vi.spyOn(window, 'alert').mockImplementation(() => {});
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const silenceRejectionSinceJsdomCannotReadImages = () => {
+      vi.spyOn(window, 'alert').mockImplementation(() => {});
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+    };
+    silenceRejectionSinceJsdomCannotReadImages();
     const container = document.createElement('div');
     document.body.append(container);
-    const unmount = images.toolbar!.mount(container, context().ctx);
+    const unmount = images.toolbar!.mount(container, minimalContextRunningBaseUpdate().ctx);
     expect(paste(canvas, [png('a.png')]).defaultPrevented).toBe(true);
     expect(document.querySelectorAll('.images-drop-highlight')).toHaveLength(1);
 
     unmount();
     expect(paste(canvas, [png('a.png')]).defaultPrevented).toBe(false);
-    expect(drag('drop', canvas, transfer([png('a.png')])).defaultPrevented).toBe(false);
+    expect(drag('drop', canvas, dataTransferStubSinceJsdomHasNone([png('a.png')])).defaultPrevented).toBe(false);
     expect(document.querySelector('.images-drop-highlight')).toBeNull();
-    await new Promise((r) => setTimeout(r)); // reactView の片付け（queueMicrotask）を待つ
+    const waitForReactViewQueuedUnmount = () => new Promise((r) => setTimeout(r));
+    await waitForReactViewQueuedUnmount();
   });
 });
