@@ -4,11 +4,11 @@
 // アイコンは lucide-react（SVG の部品。使ったアイコンだけがビルドに入る）。
 // まとまり（.group）は区切り線でなく、背景の色差で分ける（index.css）。
 
-import { Copy, FolderOpen, Plus, Redo2, Save, SaveAll, Trash2, Undo2 } from 'lucide-react';
-import { isDirty } from '../app/model';
+import { Copy, FolderKey, FolderOpen, Plus, Redo2, Save, SaveAll, Trash2, Undo2 } from 'lucide-react';
+import { isDirty, needsFolderAccess } from '../app/model';
 import { useDispatch, useModel } from '../app/store';
 import { usePlugins } from '../hooks/usePlugins';
-import { openDeck, saveDeck } from '../io/commands';
+import { grantFolderAccess, openDeck, saveDeck } from '../io/commands';
 import { IconButton } from './IconButton';
 import { PluginManager } from './PluginManager';
 import { PluginSlot } from './PluginSlot';
@@ -16,6 +16,7 @@ import { PluginSlot } from './PluginSlot';
 export function Toolbar() {
   const fileName = useModel((m) => m.fileName);
   const dirty = useModel(isDirty);
+  const askFolder = useModel(needsFolderAccess);
   const canUndo = useModel((m) => m.history.past.length > 0);
   const canRedo = useModel((m) => m.history.future.length > 0);
   const layouts = useModel((m) => m.deck.layouts);
@@ -36,6 +37,15 @@ export function Toolbar() {
         <IconButton label="名前を付けて保存 (Ctrl+Shift+S)" onClick={() => void saveDeck(true)}>
           <SaveAll />
         </IconButton>
+        {/* images/ の画像を使っているのに、まだ読めていないときだけ出る（出す条件は app/model.ts の needsFolderAccess） */}
+        {askFolder && (
+          <IconButton
+            label="フォルダへのアクセスを許可（images/ の画像を表示する）"
+            onClick={() => void grantFolderAccess()}
+          >
+            <FolderKey />
+          </IconButton>
+        )}
       </div>
 
       <div className="group">

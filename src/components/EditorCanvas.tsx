@@ -26,6 +26,7 @@ export function EditorCanvas({ width }: { width: number }) {
   const deck = useModel((m) => m.deck);
   const slide = useModel((m) => m.deck.slides[m.current]);
   const boxes = useModel((m) => m.boxes);
+  const images = useModel((m) => m.images);
   const selectedId = useModel((m) => m.selectedId);
   const editingId = useModel((m) => m.editingId);
   const dragging = useModel((m) => m.gesture !== null);
@@ -79,7 +80,7 @@ export function EditorCanvas({ width }: { width: number }) {
       onPointerUp={() => dragging && dispatch({ type: 'DragEnded' })}
       onPointerCancel={() => dragging && dispatch({ type: 'DragEnded' })}
     >
-      <SlideView deck={deck} slide={slide} width={width} onRender={onRender} />
+      <SlideView deck={deck} slide={slide} width={width} images={images} onRender={onRender} />
 
       <div className={editingId ? 'overlay editing' : 'overlay'}>
         {boxes.map((b) => {

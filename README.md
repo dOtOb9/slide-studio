@@ -22,8 +22,24 @@ npx vitest      # テスト
 | `<div data-el style="left:..px; top:..px; width:..px; height:..px">` | 自由配置の要素 |
 | `<div data-el data-shape="rect">` / `data-shape="ellipse"` | 図形（四角・円）。色などは `style` に書く |
 | `<svg data-el data-shape="arrow" viewBox="..." preserveAspectRatio="none">` | 線・矢印などの SVG 図形。`vector-effect="non-scaling-stroke"` を付けると伸ばしても線の太さが変わらない |
-| `<img data-el src="data:image/png;base64,...">` | 画像。いまは HTML に埋め込む（1ファイルで持ち運べるため）。別ファイル参照（`src="images/a.png"`）も表示はできる |
+| `<img data-el src="images/<ハッシュ>.png">` | 画像。deck.html の隣の `images/` フォルダに普通の画像ファイルとして置き、相対パスで参照する（下記「画像」） |
 | `<aside data-notes>…</aside>` | 発表者ノート（section の中に1つ、プレーンテキスト）。スライドには描画されない。複数あれば改行でつないで読み、保存すると1つにまとまる |
+
+### 画像（images/）
+
+- 画像は `images/` フォルダの直下に置き、名前は**中身の SHA-256（16進64文字）+ 拡張子**（`png` `jpg` `jpeg` `gif` `webp` `svg` `avif`）。
+  名前が中身から決まるので、同じ名前のファイルは書き直さない。使わなくなった画像も消さない。
+- アプリが管理するのは「`section` 直下の `img` 要素の `src` が `images/<英数字・_・->.<拡張子>` のもの」だけ。
+  要素の中身の HTML に書いた `<img>`、テーマ CSS の `url()`、`../` や入れ子のフォルダを含むパス、外部の URL は対象外で、書いたまま残す
+  （表示はブラウザ任せ。images/ の画像のように Blob URL に差し替えないので、多くの場合は表示されない）。
+- 古い形式の埋め込み（`src="data:image/png;base64,..."`）も今までどおり読め、保存しても埋め込みのまま（images/ に移さない）。
+- Chrome・Edge で開いたファイルが images/ の画像を使っていると、ツールバーに鍵の付いたフォルダのアイコン（フォルダへのアクセスを許可）が出る。
+  押してファイルのあるフォルダを選ぶと、images/ の画像を読んで表示する（ほかのフォルダを選ぶと断る）。
+  保存するとき、新しい画像は images/ に書く（フォルダの許可がまだなら、そのときフォルダを選ぶ）。
+  フォルダに書けないとき（フォルダの選択をキャンセルした・別のフォルダを選んだ・デスクトップ直下などブラウザが選ばせないフォルダ）は、
+  画像を data URI で deck.html に埋め込んで保存し、そのことを知らせる。埋め込んで保存したファイルは古い形式と同じ扱いになる（次に開いて保存しても埋め込みのまま）。
+- フォルダを読み書きできないブラウザ（ダウンロードで保存する）では、画像を data URI で埋め込んだ1ファイルとして保存する。
+- images/ から読む画像は 1つ 50MB まで。空・画像でない・大きすぎるファイルは読まない（理由はコンソールに出る）。
 
 位置は `left/top/width/height` を px で書く。それ以外のスタイルは自由。
 `section` の直下の要素は、`data-el` が付いていなくても自由配置の要素として扱う（AI が付け忘れても壊れないように）。
@@ -44,6 +60,7 @@ src/
     render.ts       Slide → 表示用 HTML（位置を解決して絶対配置にする）
     commands.ts     編集操作（古い Deck → 新しい Deck）
     geometry.ts     リサイズなどの位置計算
+    images.ts       images/ の画像パスの判定・使っている画像の一覧
   plugin-api/     ← プラグインに公開する API（下記「プラグイン」）
     index.ts        型・関数・API_VERSION・外部プラグインに渡す api
     react.tsx       React で書いた部品をプラグインの部品にする橋渡し（reactView）
@@ -52,7 +69,8 @@ src/
     builtin.ts      同梱のプラグインの一覧（起動時に登録する）
     shapes/         図形・テキストボックスの挿入（プラグインの手本）
   io/             ← ファイルの読み書き（Elm でいう Cmd）
-    file.ts              File System Access API（無ければ input / ダウンロード）
+    file.ts              File System Access API（無ければ input / ダウンロード）。images/ の読み書きも
+    images.ts            画像のハッシュ・表示用の Blob URL・埋め込み用の data URI
     commands.ts          開く・保存の手順（終わったら Msg を送る）
     plugins.ts           外部プラグインの読み込み（ファイル・URL から import()）
   hooks/          ← DOM の出来事を Msg に変える
@@ -93,6 +111,7 @@ examples/         ← 外部プラグインの例（sticky-note: 付箋）
 | Ctrl+D（要素を選んでいないとき） | スライドの複製 |
 | サムネイルのドラッグ | スライドの並べ替え |
 | ツールバー | 上記に加え、レイアウトを選んでスライド追加（＋）、スライドの削除、テキスト・四角・円・矢印の挿入。ボタンはアイコンで、説明はマウスを乗せると出る |
+| 鍵の付いたフォルダのアイコン | images/ の画像を表示するため、ファイルのあるフォルダへのアクセスを許可する（画像を読めていないときだけ出る） |
 | ノート欄（キャンバスの下） | 発表者ノート。フォーカスを外すと確定し、元に戻せる |
 | パズルのアイコン | プラグインの一覧。有効／無効の切り替え、外部プラグインの読み込み（ファイル・URL）と取り外し |
 
@@ -137,7 +156,14 @@ export default function myPlugin(api) {   // api: アプリの API（plugin-api 
 | `currentSlide` / `findElement` / `isBusy` | 表示中のスライド、表示中のスライドの要素、ドラッグ・編集中か |
 | `insertElement` / `updateElement` / `deleteElement` / `setNotes` | Deck の編集（新しい Deck を返す） |
 | `getPluginState` / `setPluginState` | プラグイン自身の状態（`model.plugins[名前]`。保存せず、元に戻すの対象外） |
+| `imagePathOf(blob)` | 画像の Blob から置き場所のパス `images/<SHA-256>.<拡張子>` を作る（非同期。対応しない型なら `null`）。1.2 から |
+| `sha256Hex(blob)` / `imagePath(hash, mimeType)` / `isImagePath(src)` | 上の部品: 中身のハッシュ（非同期）、ハッシュと型からパス、管理対象の画像パスか。1.2 から |
 | `version` | アプリの API の版 |
+
+**画像を置く**（1.2 から）: 画像の中身は Deck ではなく `model.images`（パス → Blob。保存のときに images/ に書かれる）に入る。
+部品で Blob を受け取ったら `imagePathOf` でパスを作り、`ctx.dispatch({ type: 'ImagesAdded', images: { [パス]: blob } })` で中身を渡してから、
+自分の Msg の update で `insertElement` を使い `{ tag: 'img', attrs: { src: パス }, … }` を置く。
+`ImagesAdded` は、キーが画像のパスでない・値が Blob でない項目を捨て、すでにある画像は上書きしない。
 
 ### 部品の見た目（共通のクラスと色）
 

@@ -13,6 +13,7 @@ import {
   type ElementPatch,
 } from '../model/commands';
 import { resizeRect } from '../model/geometry';
+import { acceptImages } from '../model/images';
 import type { Deck } from '../model/types';
 import { isPluginMsg, pluginKey, updatePlugin } from '../plugins/host';
 import {
@@ -37,12 +38,27 @@ export function update(model: Model, msg: Msg): Model {
 
   switch (msg.type) {
     case 'DeckLoaded':
-      // プラグイン自身の状態は、ファイルの中身ではないので引き継ぐ
-      return { ...initModel(msg.deck, msg.fileName), plugins: model.plugins };
+      // プラグイン自身の状態は、ファイルの中身ではないので引き継ぐ。画像（images）は別のファイルのものなので空にする
+      return { ...initModel(msg.deck, msg.fileName), plugins: model.plugins, canReadFolder: msg.canReadFolder === true };
 
     case 'DeckSaved':
       // 保存中に編集が続いていても正しく判定できるよう、「保存した時点の」Deck を覚える
-      return { ...model, savedDeck: msg.deck, fileName: msg.fileName };
+      return {
+        ...model,
+        savedDeck: msg.deck,
+        fileName: msg.fileName,
+        canReadFolder: msg.canReadFolder ?? model.canReadFolder,
+      };
+
+    case 'ImagesAdded': {
+      // 外から来る値（プラグインの部品も送る）: キーが画像のパスで、値が Blob の項目だけを受け入れる
+      const { images, rejected } = acceptImages(msg.images);
+      if (rejected.length > 0) console.error('ImagesAdded の中の、画像のパスと Blob の組でない項目を捨てました', rejected);
+      // すでに持っている画像は上書きしない（名前が中身から決まるので、同じ名前なら同じ中身のはず）
+      const added = Object.keys(images).filter((path) => !Object.prototype.hasOwnProperty.call(model.images, path));
+      if (added.length === 0) return model;
+      return { ...model, images: { ...images, ...model.images } };
+    }
 
     case 'SlideSelected':
       // ドラッグ中に切り替えると、途中まで動かした分が履歴に残らなくなるので無視する

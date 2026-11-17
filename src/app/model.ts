@@ -2,6 +2,7 @@
 // 画面に出ているもの・操作の途中経過は、すべてここから導けるようにする。
 
 import type { Handle } from '../model/geometry';
+import { missingImagePaths } from '../model/images';
 import type { Deck, Rect } from '../model/types';
 
 /** スライド座標（px）の点 */
@@ -66,6 +67,18 @@ export interface Model {
    * 別のファイルを開いても消さない（ファイルの中身ではなく、操作をまたいで覚える値のため）
    */
   plugins: Record<string, unknown>;
+  /**
+   * images/ の画像の中身。キーは画像のパス（`images/<中身の SHA-256>.<拡張子>`、model/images.ts）。
+   * Deck ではなくここに持つ。名前が中身から決まるので、増えるだけで消さない（使わなくなった画像も残しておく）。
+   * そのため履歴（元に戻す）にも未保存の判定にも入れない。フォルダから画像が後から届いても未保存にならず、
+   * 画像を消す操作を元に戻しても、中身を見失わない。別のファイルを開いたら空にする
+   */
+  images: Record<string, Blob>;
+  /**
+   * 開いたファイルの隣の images/ を読みに行けるか（File System Access API でファイルを開いたとき true）。
+   * <input type="file"> で開いたファイルや、起動時のサンプルは場所がわからないので false
+   */
+  canReadFolder: boolean;
 }
 
 /**
@@ -80,6 +93,14 @@ export function defaultNewLayout(model: Model): string {
   if (!current) return second.name; // スライドが0枚
   if (current === layouts[0].name) return second.name; // 表紙の次
   return current;
+}
+
+/**
+ * ツールバーに「フォルダへのアクセスを許可」を出すか。
+ * 隣のフォルダを読みに行けて、使っている images/ の画像のうち中身を持っていないものがあるとき
+ */
+export function needsFolderAccess(model: Model): boolean {
+  return model.canReadFolder && missingImagePaths(model.deck, model.images).length > 0;
 }
 
 /** 未保存の変更があるか */
@@ -98,5 +119,7 @@ export function initModel(deck: Deck, fileName: string): Model {
     gesture: null,
     history: { past: [], future: [] },
     plugins: {},
+    images: {},
+    canReadFolder: false,
   };
 }

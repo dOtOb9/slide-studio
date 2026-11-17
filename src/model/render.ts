@@ -2,7 +2,7 @@
 // プレースホルダーの位置をレイアウトから解決し、すべての要素を絶対配置にする。
 // 画面表示・サムネイル・（将来の）PDF 書き出しで同じ関数を使うので、見た目が一致する。
 
-import { elementHtml, styleText } from './serialize';
+import { elementAttrs, elementHtml, styleText, type ResolveSrc } from './serialize';
 import type { Deck, Rect, Slide, SlideElement } from './types';
 
 /** 要素の最終的な位置 = レイアウトの位置 + スライド側の上書き */
@@ -33,12 +33,17 @@ section > * { position: absolute; box-sizing: border-box; margin: 0; }
 `;
 }
 
-export function renderSlideHtml(deck: Deck, slide: Slide): string {
+/**
+ * スライド1枚の表示用 HTML。
+ * resolveSrc を渡すと、images/ の画像の src を差し替える（編集画面とサムネイルは Blob URL にする）。
+ * 省略すれば src はそのまま（ブラウザは images/... を、アプリのページからの相対パスとして読みに行く）
+ */
+export function renderSlideHtml(deck: Deck, slide: Slide, resolveSrc?: ResolveSrc): string {
   const parts = slide.elements.map((el) => {
     const ph = findPlaceholder(deck, slide, el);
     // レイアウト側のスタイル（枠線など）→ スライド側のスタイルの順に並べ、後者を優先させる
     const style = styleText(resolveRect(deck, slide, el), [ph?.style, el.style].filter(Boolean).join('; '));
-    const attrs: Record<string, string> = { ...el.attrs, 'data-id': el.id };
+    const attrs: Record<string, string> = { ...elementAttrs(el, resolveSrc), 'data-id': el.id };
     if (el.ph) attrs['data-ph'] = el.ph;
     return elementHtml(el.tag, attrs, style, el.html);
   });

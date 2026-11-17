@@ -7,6 +7,7 @@ import { SlideView } from './SlideView';
 export function ThumbnailList() {
   const deck = useModel((m) => m.deck);
   const current = useModel((m) => m.current);
+  const images = useModel((m) => m.images);
   const dispatch = useDispatch();
 
   // ドラッグ中の表示（どれをつかんでいて、どこに挿入線を出すか）。
@@ -57,7 +58,7 @@ export function ThumbnailList() {
             onDragEnd={endDrag}
           >
             <span className="num">{i + 1}</span>
-            <SlideView deck={deck} slide={s} width={180} />
+            <SlideView deck={deck} slide={s} width={180} images={images} />
           </button>
         );
       })}
