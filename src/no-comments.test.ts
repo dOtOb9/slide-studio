@@ -2,7 +2,7 @@ import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 const scriptFiles = import.meta.glob<string>(
-  ['/src/**/*.{ts,tsx}', '/examples/**/*.js', '/scripts/**/*.mjs', '/*.{ts,js}', '/tsconfig*.json'],
+  ['/src/**/*.{ts,tsx}', '/examples/**/*.{js,mjs,cjs}', '/scripts/**/*.{js,mjs,cjs}', '/*.{ts,js,mjs,cjs}', '/tsconfig*.json'],
   { query: '?raw', import: 'default', eager: true },
 );
 const cssFiles = import.meta.glob<string>('/src/**/*.css', { query: '?raw', import: 'default', eager: true });
@@ -18,15 +18,18 @@ const workflowFilesInDotDirectory = import.meta.glob<string>('/.github/workflows
   exhaustive: true,
 });
 
-const TOOL_DIRECTIVES_THAT_CHANGE_BEHAVIOR_OR_CHECKS = [
+const ESLINT_RULE_NAMES_ONLY = String.raw`(\s+[\w@/-]+(\s*,\s*[\w@/-]+)*)?`;
+
+const TOOL_DIRECTIVES_WITHOUT_EXPLANATION = [
   /^\/\/\/\s*<reference\s[^>]*\/>$/,
-  /^\/[/*]\s*eslint-(disable|enable)(-next-line|-line)?\b/,
-  /^\/\/\s*@ts-(expect-error|ignore|nocheck)\b/,
+  new RegExp(String.raw`^\/\/\s*eslint-(disable|enable)(-next-line|-line)?` + ESLINT_RULE_NAMES_ONLY + String.raw`\s*$`),
+  new RegExp(String.raw`^\/\*\s*eslint-(disable|enable)(-next-line|-line)?` + ESLINT_RULE_NAMES_ONLY + String.raw`\s*\*\/$`),
+  /^\/\/\s*@ts-(expect-error|ignore)\s*$/,
   /^\/\*\s*@vite-ignore\s*\*\/$/,
 ];
 
 const isToolDirective = (comment: string) =>
-  TOOL_DIRECTIVES_THAT_CHANGE_BEHAVIOR_OR_CHECKS.some((directive) => directive.test(comment.trim()));
+  TOOL_DIRECTIVES_WITHOUT_EXPLANATION.some((directive) => directive.test(comment.trim()));
 
 const LITERAL_KINDS_WHOSE_TEXT_IS_NOT_TRIVIA = new Set([
   ts.SyntaxKind.StringLiteral,
@@ -40,7 +43,7 @@ const LITERAL_KINDS_WHOSE_TEXT_IS_NOT_TRIVIA = new Set([
 function scriptKindOf(fileName: string): ts.ScriptKind {
   if (fileName.endsWith('.tsx')) return ts.ScriptKind.TSX;
   if (fileName.endsWith('.json')) return ts.ScriptKind.JSON;
-  if (/\.m?js$/.test(fileName)) return ts.ScriptKind.JS;
+  if (/\.[mc]?js$/.test(fileName)) return ts.ScriptKind.JS;
   return ts.ScriptKind.TS;
 }
 
@@ -68,7 +71,9 @@ function realCommentsInScript(fileName: string, text: string): string[] {
 
 const cssComments = (text: string) => text.match(/\/\*[\s\S]*?\*\//g) ?? [];
 const htmlComments = (text: string) => text.match(/<!--[\s\S]*?-->/g) ?? [];
-const yamlCommentLines = (text: string) => text.split('\n').filter((line) => /^\s*#/.test(line));
+const withoutQuotedYamlStrings = (line: string) => line.replace(/'[^']*'|"[^"]*"/g, '');
+const yamlCommentLines = (text: string) =>
+  text.split('\n').filter((line) => /(^|\s)#/.test(withoutQuotedYamlStrings(line)));
 
 function commentsPerFile(files: Record<string, string>, find: (file: string, text: string) => string[]) {
   return Object.entries(files)
@@ -134,18 +139,28 @@ describe('コメントの見つけ方', () => {
     expect(realCommentsInScript('x.tsx', text)).toEqual([]);
   });
 
-  it('ツールへの指示（reference・eslint-disable・@ts-expect-error・@vite-ignore）は許す', () => {
+  it('説明の無いツールへの指示（reference・eslint-disable・@ts-expect-error・@ts-ignore・@vite-ignore）は許す', () => {
     const text = [
       '/// <reference types="vite/client" />',
       '// eslint-disable-next-line no-console',
-      '// @ts-expect-error 外の型の誤り',
+      '// eslint-disable-next-line no-console, @typescript-eslint/no-explicit-any',
+      '/* eslint-disable react-hooks/exhaustive-deps */',
+      '// @ts-expect-error',
+      '// @ts-ignore',
       'const m = import(/* @vite-ignore */ url);',
     ].join('\n');
     expect(realCommentsInScript('x.ts', text)).toEqual([]);
   });
 
-  it('ツールへの指示に説明を足したものは許さない', () => {
-    expect(realCommentsInScript('x.ts', '// @vite-ignore: 実行時に決まる import\nexport {};')).toHaveLength(1);
+  it.each([
+    ['@vite-ignore に説明', '// @vite-ignore: 実行時に決まる import'],
+    ['@ts-expect-error に説明', '// @ts-expect-error 外の型の誤り'],
+    ['@ts-ignore に説明', '// @ts-ignore この下は型が合わない'],
+    ['eslint-disable に -- 理由', '// eslint-disable-next-line no-console -- 理由の文章'],
+    ['eslint-disable のブロックに -- 理由', '/* eslint-disable no-console -- 理由 */'],
+    ['許す一覧に無い @ts-nocheck', '// @ts-nocheck'],
+  ])('ツールへの指示でも、%s は許さない', (_, comment) => {
+    expect(realCommentsInScript('x.ts', `${comment}\nexport {};`)).toEqual([comment]);
   });
 
   it('tsconfig（JSON にコメントを書ける形式）のコメントを見つける', () => {
@@ -156,5 +171,9 @@ describe('コメントの見つけ方', () => {
     expect(cssComments('a { color: red; } /* x */')).toEqual(['/* x */']);
     expect(htmlComments('<p>a</p><!-- x -->')).toEqual(['<!-- x -->']);
     expect(yamlCommentLines('on: push\n  # x\nrun: echo "#1"')).toEqual(['  # x']);
+  });
+
+  it('YAML の行末のコメントも見つけ、引用符の中や ${{ }} の中の # は数えない', () => {
+    expect(yamlCommentLines("run: npm ci # 説明\nname: 'a # b'\nrun: echo \"#1\" ${{ x }}\nx: a#b")).toEqual(['run: npm ci # 説明']);
   });
 });
