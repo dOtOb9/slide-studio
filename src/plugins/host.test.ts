@@ -167,9 +167,29 @@ describe('Msg の振り分け', () => {
     expect(Object.keys(setup()).sort()).toEqual(Object.keys(MODEL_KEYS).sort());
   });
 
-  it('欄の値の型までは確かめない（images が Blob の表かなどは見ない。画面が中を読む deck・history・images がオブジェクトであることだけ）', () => {
-    registerPlugin({ name: 'loose', apiVersion: '1.0', update: (m: Model) => ({ ...m, images: { 'images/a.png': 'not a blob' } }) }, 'external');
-    expect(update(setup(), { type: 'loose/Thing' }).images).toEqual({ 'images/a.png': 'not a blob' });
+  it('欄の値の型までは確かめない（deck の中身などは見ない。画面が中を読む deck・history・images がオブジェクトであることと、images の値が Blob であることだけ）', () => {
+    registerPlugin({ name: 'loose', apiVersion: '1.0', update: (m: Model) => ({ ...m, current: 'not a number' }) }, 'external');
+    expect(update(setup(), { type: 'loose/Thing' }).current).toBe('not a number');
+  });
+
+  it('update が images に Blob でない値を入れた Model を返したら断り、Model はそのまま（画面が blob: の URL を作るときに例外で落ちるため）', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    registerPlugin(
+      { name: 'bad', apiVersion: '1.0', update: (m: Model) => ({ ...m, images: { ...m.images, 'images/a.png': 'not a blob' } }) },
+      'external',
+    );
+    const m0 = setup();
+    expect(update(m0, { type: 'bad/Thing' })).toBe(m0);
+    expect(error).toHaveBeenCalled();
+  });
+
+  it('images のキーが画像のパスかまでは確かめない（画面は img の src と同じキーしか読まないので、余分なキーがあっても落ちない）。Blob の値なら受け入れる', () => {
+    const blob = new Blob(['x'], { type: 'image/png' });
+    registerPlugin(
+      { name: 'loose', apiVersion: '1.0', update: (m: Model) => ({ ...m, images: { ...m.images, 'not/an/image-path': blob } }) },
+      'external',
+    );
+    expect(update(setup(), { type: 'loose/Thing' }).images).toEqual({ 'not/an/image-path': blob });
   });
 
   it.each(Object.keys(MODEL_KEYS))('update が欄 %s の無い Model を返したら断り、Model はそのまま（Step 8 audit-1 #4）', (key) => {

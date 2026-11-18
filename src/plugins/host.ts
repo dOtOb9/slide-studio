@@ -101,7 +101,7 @@ export function updatePlugin(model: Model, msg: PluginMsg): Model {
   if (!enabled || !plugin.update) return model;
   const next = callPlugin(plugin, () => plugin.update!(model, msg));
   if (next === undefined) return model;
-  if (!looksLikeModelEnoughForScreenToRead(next)) {
+  if (!looksLikeModelEnoughForScreenToRead(next, model)) {
     console.error(`プラグイン ${plugin.name} の update が Model を返しませんでした`);
     return model;
   }
@@ -124,7 +124,7 @@ export const MODEL_KEYS: Record<keyof Model, true> = {
   canReadFolder: true,
 };
 
-function looksLikeModelEnoughForScreenToRead(value: unknown): value is Model {
+function looksLikeModelEnoughForScreenToRead(value: unknown, before: Model): value is Model {
   if (!value || typeof value !== 'object') return false;
   if (!Object.keys(MODEL_KEYS).every((key) => key in value)) return false;
   const m = value as Partial<Model>;
@@ -134,8 +134,15 @@ function looksLikeModelEnoughForScreenToRead(value: unknown): value is Model {
     typeof m.history === 'object' &&
     m.history !== null &&
     typeof m.images === 'object' &&
-    m.images !== null
+    m.images !== null &&
+    imagesAreBlobsSoScreenCanMakeUrls(m.images, before.images)
   );
+}
+
+function imagesAreBlobsSoScreenCanMakeUrls(images: object, before: Model['images']): boolean {
+  const unchangedSoAlreadyChecked = images === before;
+  if (unchangedSoAlreadyChecked) return true;
+  return Object.values(images).every((value) => value instanceof Blob);
 }
 
 export function pluginKey(model: Model, key: KeyInput, update: (model: Model, msg: Msg) => Model): Model | null {
