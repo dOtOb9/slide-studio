@@ -61,9 +61,9 @@ export function updateImages(model: Model, msg: ImagesMsg): Model {
       );
       let deck: Deck = model.deck;
       for (const element of elements) deck = insertElement(deck, slide.id, element);
-      const oneUndoRemovesAllImagesOfThisOperation = edit(model, deck);
+      const editedOnceForAllImages = edit(model, deck);
       const topmostInserted = elements[elements.length - 1];
-      return { ...oneUndoRemovesAllImagesOfThisOperation, nextId, selectedId: topmostInserted.id };
+      return { ...editedOnceForAllImages, nextId, selectedId: topmostInserted.id };
     }
   }
 }

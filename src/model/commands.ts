@@ -87,11 +87,10 @@ export function deleteSlide(deck: Deck, index: number): Deck {
 
 export function moveSlide(deck: Deck, from: number, toIndexAfterRemoval: number): Deck {
   const n = deck.slides.length;
-  const to = toIndexAfterRemoval;
-  if (from === to || from < 0 || from >= n || to < 0 || to >= n) return deck;
+  if (from === toIndexAfterRemoval || from < 0 || from >= n || toIndexAfterRemoval < 0 || toIndexAfterRemoval >= n) return deck;
   const slides = [...deck.slides];
   const [moved] = slides.splice(from, 1);
-  slides.splice(to, 0, moved);
+  slides.splice(toIndexAfterRemoval, 0, moved);
   return { ...deck, slides };
 }
 

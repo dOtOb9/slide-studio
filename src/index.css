@@ -196,8 +196,10 @@ body {
   align-items: center;
   justify-content: center;
   outline: 1px dashed var(--fg-faint);
-  min-width: 160px;
-  min-height: 40px;
+  --min-grab-width-of-unsized-empty-placeholder: 160px;
+  --min-grab-height-of-unsized-empty-placeholder: 40px;
+  min-width: var(--min-grab-width-of-unsized-empty-placeholder);
+  min-height: var(--min-grab-height-of-unsized-empty-placeholder);
 }
 .ph-hint { color: var(--fg-faint); font-size: 14px; pointer-events: none; user-select: none; }
 

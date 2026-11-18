@@ -9,8 +9,13 @@ function commitFocusedFieldBeforeFileAccess() {
   (document.activeElement as HTMLElement | null)?.blur();
 }
 
+export const TEXT_INPUT_TYPE_WHERE_SHORTCUTS_ARE_OFF = 'text';
+
 function isTextEntryField(target: EventTarget | null): boolean {
-  return target instanceof HTMLTextAreaElement || (target instanceof HTMLInputElement && target.type === 'text');
+  return (
+    target instanceof HTMLTextAreaElement ||
+    (target instanceof HTMLInputElement && target.type === TEXT_INPUT_TYPE_WHERE_SHORTCUTS_ARE_OFF)
+  );
 }
 
 function pressesFocusedControlLikeAButton(e: KeyboardEvent): boolean {

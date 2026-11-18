@@ -49,22 +49,21 @@ async function loadMissingImages(): Promise<string[]> {
 }
 
 export async function saveDeck(saveAs = false) {
-  const { deck: deckFixedBeforeSlowWrites, fileName, images, canReadFolder } = getModel();
-  const deck = deckFixedBeforeSlowWrites;
+  const { deck: deckAsOfSaveStart, fileName, images, canReadFolder } = getModel();
   try {
     const proceed = (dest: SaveDestination) => {
-      const lost = imagesLostBySave(deck, images, dest);
+      const lost = imagesLostBySave(deckAsOfSaveStart, images, dest);
       return lost.length === 0 || window.confirm(lostImagesQuestion(lost.length, canReadFolder));
     };
     const saved = await saveFile(
       fileName,
       saveAs,
-      imagesToWrite(deck, images),
-      (imagesWrittenToFolder) => deckHtml(deck, images, imagesWrittenToFolder),
+      imagesToWrite(deckAsOfSaveStart, images),
+      (imagesWrittenToFolder) => deckHtml(deckAsOfSaveStart, images, imagesWrittenToFolder),
       proceed,
     );
     if (!saved) return;
-    dispatch({ type: 'DeckSaved', deck, fileName: saved.name, canReadFolder: saved.canReadFolder });
+    dispatch({ type: 'DeckSaved', deck: deckAsOfSaveStart, fileName: saved.name, canReadFolder: saved.canReadFolder });
     if (saved.embedded) window.alert('フォルダに書けないので、画像を deck.html の中に入れて保存しました');
   } catch (e) {
     report('保存', e);

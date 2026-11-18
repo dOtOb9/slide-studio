@@ -1,10 +1,15 @@
 import { ArrowRight, FileUp, Puzzle, Trash2, X } from 'lucide-react';
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
+import { TEXT_INPUT_TYPE_WHERE_SHORTCUTS_ARE_OFF } from '../hooks/useKeyboard';
 import { usePlugins } from '../hooks/usePlugins';
 import { loadPluginFromFile, loadPluginFromUrl } from '../io/plugins';
 import { API_VERSION } from '../plugin-api';
 import { setPluginEnabled, unregisterPlugin } from '../plugins/host';
 import { IconButton } from './IconButton';
+
+function stayOnPageInsteadOfReloading(e: FormEvent) {
+  e.preventDefault();
+}
 
 export function PluginManager() {
   const [open, setOpen] = useState(false);
@@ -59,13 +64,12 @@ export function PluginManager() {
             </IconButton>
             <form
               onSubmit={(e) => {
-                const stayOnPageInsteadOfReloading = () => e.preventDefault();
-                stayOnPageInsteadOfReloading();
+                stayOnPageInsteadOfReloading(e);
                 if (url.trim()) void loadPluginFromUrl(url).then((name) => name && setUrl(''));
               }}
             >
               <input
-                type="text"
+                type={TEXT_INPUT_TYPE_WHERE_SHORTCUTS_ARE_OFF}
                 inputMode="url"
                 placeholder="URL から読み込む（https://…/plugin.js）"
                 aria-label="プラグインの URL"

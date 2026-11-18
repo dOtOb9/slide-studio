@@ -6,6 +6,10 @@ import './style.css';
 
 const LABEL = '画像を挿入（貼り付け・ドラッグ&ドロップでも入れられます）';
 
+function resetSoChoosingTheSameFileAgainFiresChange(input: HTMLInputElement) {
+  input.value = '';
+}
+
 export function ImagesToolbar({ model, dispatch }: PluginViewProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const hasSlide = model.deck.slides.length > 0;
@@ -29,8 +33,7 @@ export function ImagesToolbar({ model, dispatch }: PluginViewProps) {
         data-images-input
         onChange={(e) => {
           const files = Array.from(e.target.files ?? []);
-          const soChoosingTheSameFileAgainFiresChange = '';
-          e.target.value = soChoosingTheSameFileAgainFiresChange;
+          resetSoChoosingTheSameFileAgainFiresChange(e.target);
           if (files.length > 0) void insertImageFiles(files, dispatch);
         }}
       />

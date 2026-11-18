@@ -42,7 +42,7 @@ const isNotFound = (e: unknown) => e instanceof DOMException && e.name === 'NotF
 
 const fileNameInImageDir = (checkedImagePath: string) => checkedImagePath.slice(IMAGE_DIR.length + 1);
 
-const SOMEWHERE_ELSE: SaveDestination = { overwritesOpenedFile: false, directlyInGrantedFolder: false };
+const SOMEWHERE_ELSE_INCLUDING_DOWNLOADS: SaveDestination = { overwritesOpenedFile: false, directlyInGrantedFolder: false };
 
 async function isDirectlyIn(dir: DirectoryHandle, file: FileHandle): Promise<boolean> {
   const path = await dir.resolve(file);
@@ -199,7 +199,7 @@ export async function saveFile(
       const showsPicker = saveAs || !overwriteTargetOutsideModel;
       const grantedBeforePicker = grantedFolderOfOpenedFile;
       const askBeforePickerSinceBrowserCreatesFileOnPick = showsPicker && !grantedBeforePicker;
-      if (askBeforePickerSinceBrowserCreatesFileOnPick && !proceed(SOMEWHERE_ELSE)) return null;
+      if (askBeforePickerSinceBrowserCreatesFileOnPick && !proceed(SOMEWHERE_ELSE_INCLUDING_DOWNLOADS)) return null;
       const target =
         saveAs || !overwriteTargetOutsideModel
           ? await fsWindow.showSaveFilePicker({ suggestedName: name, types: PICKER_TYPES })
@@ -236,8 +236,7 @@ export async function saveFile(
       throw e;
     }
   }
-  const downloadCountsAsSomewhereElse = SOMEWHERE_ELSE;
-  if (!proceed(downloadCountsAsSomewhereElse)) return null;
+  if (!proceed(SOMEWHERE_ELSE_INCLUDING_DOWNLOADS)) return null;
   const url = URL.createObjectURL(new Blob([await html(false)], { type: 'text/html' }));
   const a = document.createElement('a');
   a.href = url;

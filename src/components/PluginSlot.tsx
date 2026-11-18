@@ -2,6 +2,10 @@ import { useEffect, useRef } from 'react';
 import { pluginContext } from '../app/store';
 import type { PluginView } from '../plugin-api';
 
+function clearLeftoverDomSoNextMountIsNotDoubled(container: HTMLElement) {
+  container.replaceChildren();
+}
+
 export function PluginSlot({ name, view }: { name: string; view: PluginView }) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -20,8 +24,7 @@ export function PluginSlot({ name, view }: { name: string; view: PluginView }) {
       } catch (e) {
         console.error(`プラグイン ${name} の部品を片付けられませんでした`, e);
       }
-      const clearLeftoverDomSoNextMountIsNotDoubled = () => container.replaceChildren();
-      clearLeftoverDomSoNextMountIsNotDoubled();
+      clearLeftoverDomSoNextMountIsNotDoubled(container);
     };
   }, [name, view]);
 

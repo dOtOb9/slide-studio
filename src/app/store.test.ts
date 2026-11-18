@@ -32,8 +32,7 @@ describe('pluginContext の各関数は、部品から来る不正な値で止�
   it.each(runnableBadInputs)('%s', (_name, run) => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     expect(run).not.toThrow();
-    const modelIsNotBroken = useStore.getState().model.deck;
-    expect(modelIsNotBroken).toBeDefined();
+    expect(useStore.getState().model.deck, 'Model が壊れていない').toBeDefined();
   });
 });
 

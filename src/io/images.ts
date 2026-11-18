@@ -22,11 +22,10 @@ function blobUrl(blob: Blob): string {
   return url;
 }
 
-export function displaySrc(images: Record<string, Blob>): ResolveSrc {
+export function displaySrcLeavingMissingAsBrokenPath(images: Record<string, Blob>): ResolveSrc {
   return (path) => {
     const blob = images[path];
-    const missingShowsAsBrokenImage = path;
-    return blob ? blobUrl(blob) : missingShowsAsBrokenImage;
+    return blob ? blobUrl(blob) : path;
   };
 }
 

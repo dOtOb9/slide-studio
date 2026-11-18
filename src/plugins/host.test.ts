@@ -92,11 +92,10 @@ describe('registerPlugin', () => {
     onKey: { value: 'x', message: 'onKey が関数ではありません' },
     toolbar: { value: { mount: 1 }, message: 'mount がありません' },
   };
-  it('登録簿の Plugin（ReceivedPlugin）は、関数の欄の戻り値が unknown（確かめずに使うと型エラー。Step 7a audit-1 #2）', () => {
+  it('登録簿の Plugin（ReceivedPlugin）は、関数の欄の戻り値が unknown（確かめずに使うと型エラー。Step 7a audit-1 #2）。関数でない欄はそのまま', () => {
     expectTypeOf<ReturnType<NonNullable<ReceivedPlugin['update']>>>().toBeUnknown();
     expectTypeOf<ReturnType<NonNullable<ReceivedPlugin['onKey']>>>().toBeUnknown();
-    const nonFunctionFieldsStayAsIs = expectTypeOf<ReceivedPlugin['name']>();
-    nonFunctionFieldsStayAsIs.toEqualTypeOf<string>();
+    expectTypeOf<ReceivedPlugin['name']>().toEqualTypeOf<string>();
   });
 
   it.each(Object.entries(badValueForEveryPluginFieldOrTypeError))('欄 %s に不正な値があれば断る（Plugin に欄を足すと、ここに書くまで型エラー。Step 6 の再発防止）', (key, { value, message }) => {

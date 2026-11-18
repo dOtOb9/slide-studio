@@ -176,6 +176,18 @@ describe('元に戻す／やり直し', () => {
     expect(m.current).toBe(2);
   });
 
+  it('並べ替えを戻すと、動かしたスライドでなく並びが最初に変わった位置を表示する（どこが変わったかは見えるので、これで良しとしている）', () => {
+    const m0 = showTitleBodySlideWithMeasuredBoxes();
+    const m = runMsgsInOrder(
+      m0,
+      { type: 'SlideMoved', from: 3, to: 0 },
+      { type: 'SlideSelected', index: 2 },
+      { type: 'Undo' },
+    );
+    expect(m.deck).toBe(m0.deck);
+    expect(m.current).toBe(0);
+  });
+
   it('履歴は 100 件まで。古いものから捨てる', () => {
     const m0 = showTitleBodySlideWithMeasuredBoxes();
     let m = update(m0, { type: 'ElementSelected', id: el(m0, 2).id });

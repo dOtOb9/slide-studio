@@ -87,8 +87,8 @@ export function update(model: Model, msg: Msg): Model {
       if (isBusy(model)) return model;
       const deck = moveSlide(model.deck, msg.from, msg.to);
       if (deck === model.deck) return model;
-      const keepShowingMovedSlide = msg.to;
-      return showSlide(edit(model, deck), keepShowingMovedSlide);
+      const movedSlideIndex = msg.to;
+      return showSlide(edit(model, deck), movedSlideIndex);
     }
 
     case 'NotesCommitted': {

@@ -2,6 +2,10 @@ import { useState, type DragEvent } from 'react';
 import { useDispatch, useModel } from '../app/store';
 import { SlideView } from './SlideView';
 
+function allowDropHere(e: DragEvent<HTMLElement>) {
+  e.preventDefault();
+}
+
 export function ThumbnailList() {
   const deck = useModel((m) => m.deck);
   const current = useModel((m) => m.current);
@@ -13,8 +17,7 @@ export function ThumbnailList() {
 
   const onDragOver = (e: DragEvent<HTMLElement>, i: number) => {
     if (dragFrom === null) return;
-    const allowDropHere = () => e.preventDefault();
-    allowDropHere();
+    allowDropHere(e);
     const r = e.currentTarget.getBoundingClientRect();
     const overUpperHalf = e.clientY < r.top + r.height / 2;
     setInsertBeforeIndex(overUpperHalf ? i : i + 1);
