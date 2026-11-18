@@ -44,6 +44,7 @@ describe('examples/sticky-note', () => {
         listeners.add(l);
         return () => listeners.delete(l);
       },
+      slideArea: () => null,
     };
     const container = document.createElement('div');
     const unmount = plugin.toolbar!.mount(container, ctx);

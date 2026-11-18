@@ -144,7 +144,7 @@ export default function myPlugin(api) {   // api: アプリの API（plugin-api 
     },
     onKey(model, key) { return null; },    // 任意。土台が扱わなかったキーを自分の Msg に変える
     toolbar: {                             // 任意。ツールバーの部品
-      mount(container, ctx) {              // container に DOM を作る。ctx: getModel / dispatch / subscribe
+      mount(container, ctx) {              // container に DOM を作る。ctx: getModel / dispatch / subscribe / slideArea
         return () => {};                   // 片付ける関数を返す
       },
     },
@@ -180,6 +180,7 @@ export default function myPlugin(api) {   // api: アプリの API（plugin-api 
 | `getModel()` | 今の Model を読む |
 | `dispatch(msg)` | Msg を送る（状態を変える唯一の入口）。Msg の形（type が文字列のオブジェクト）でないものは捨てられる |
 | `subscribe(fn)` | Model が変わるたびに `fn` を呼ぶ。戻り値を呼ぶと外れる。`fn` が例外を出しても、アプリと他の部品は止まらない |
+| `slideArea()` | スライドを表示している作業領域の要素（ファイルのドロップ先などに使う）。無ければ `null`。土台の内部のクラス名（`.stage` など）は API ではないので、こちらを使う。1.4 から |
 
 **Model の主な欄**（読むときの約束。書き換えは `edit` / `setPluginState` などを通す）
 
@@ -233,6 +234,7 @@ export default function myPlugin(api) {   // api: アプリの API（plugin-api 
 | 1.1 | 部品の見た目の約束（共通クラス `.button` / `.icon-button` と CSS 変数） |
 | 1.2 | images/ の画像（`Model.images`、Msg の `ImagesAdded`、`imagePathOf` / `sha256Hex` / `imagePath` / `isImagePath`） |
 | 1.3 | 受け取った画像のファイルを確かめる `checkImageFile` / `extensionOf`（画像の挿入のプラグインが、土台と同じ上限・同じ対応形式で断れるように） |
+| 1.4 | 部品の ctx に `slideArea()`（スライドの表示領域の要素。プラグインが土台の内部のクラス名に頼らずにドロップ先を決められるように） |
 
 型の一覧は [src/plugin-api/index.ts](src/plugin-api/index.ts)。
 

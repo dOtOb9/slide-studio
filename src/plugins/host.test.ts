@@ -4,7 +4,8 @@ import { initModel, type Model } from '../app/model';
 import { update } from '../app/update';
 import { parseDeck } from '../model/parse';
 import * as pluginApi from '../plugin-api';
-import { api, isCompatible, type Plugin } from '../plugin-api';
+import { api, API_VERSION, isCompatible, type Plugin } from '../plugin-api';
+import { pluginContext } from '../app/store';
 import sample from '../samples/sample-deck.html?raw';
 import {
   checkMsgFromPlugin,
@@ -266,6 +267,30 @@ describe('plugin-api', () => {
       .filter((name) => name !== 'version')
       .sort();
     expect(inApi).toEqual(exported);
+  });
+});
+
+describe('API 1.4（ctx.slideArea を足した）の後方互換', () => {
+  it.each(['1.0', '1.1', '1.2', '1.3'])('apiVersion %s のプラグインも登録でき、slideArea を使わない部品はそのまま動く', (version) => {
+    expect(API_VERSION).toBe('1.4');
+    const container = document.createElement('div');
+    const plugin = registerPlugin(
+      {
+        name: 'old',
+        apiVersion: version,
+        toolbar: {
+          mount(el: HTMLElement, ctx: { getModel(): Model }) {
+            el.textContent = String(ctx.getModel().current);
+            return () => el.replaceChildren();
+          },
+        },
+      },
+      'external',
+    );
+    const unmount = plugin.toolbar!.mount(container, pluginContext);
+    expect(container.textContent).toBe('0');
+    unmount();
+    expect(container.textContent).toBe('');
   });
 });
 

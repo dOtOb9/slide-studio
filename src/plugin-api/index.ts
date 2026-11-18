@@ -13,7 +13,7 @@ import { imagePathOf, sha256Hex } from '../io/images';
 import { deleteElement, insertElement, setNotes, updateElement } from '../model/commands';
 import { checkImageFile, extensionOf, imagePath, isImagePath } from '../model/images';
 
-export const API_VERSION = '1.3';
+export const API_VERSION = '1.4';
 
 export type { KeyInput, Model, Msg, PluginMsg };
 export type { Deck, Layout, Placeholder, Rect, Slide, SlideElement } from '../model/types';
@@ -23,6 +23,7 @@ export interface PluginContext {
   getModel(): Model;
   dispatch(msg: Msg): void;
   subscribe(listener: () => void): () => void;
+  slideArea(): HTMLElement | null;
 }
 
 export interface PluginView {

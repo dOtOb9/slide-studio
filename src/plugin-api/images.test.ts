@@ -4,7 +4,6 @@ import { update } from '../app/update';
 import { parseDeck } from '../model/parse';
 import {
   api,
-  API_VERSION,
   checkImageFile,
   extensionOf,
   imagePath,
@@ -43,8 +42,7 @@ describe('画像の公開 API', () => {
     expect(checkImageFile('a.png')).toMatch(/ファイルではありません/);
   });
 
-  it('外部プラグインに渡す api にも入っていて、版は 1.3', () => {
-    expect(API_VERSION).toBe('1.3');
+  it('外部プラグインに渡す api にも入っていて、1.3 以前のプラグインも動く', () => {
     expect(isCompatible('1.3')).toBe(true);
     expect(isCompatible('1.2')).toBe(true);
     expect(isCompatible('1.1')).toBe(true);

@@ -1,3 +1,4 @@
+import { slideAreaMarker } from '../app/slideArea';
 import { useDispatch, useModel } from '../app/store';
 import { useElementSize } from '../hooks/useElementSize';
 import { EditorCanvas } from './EditorCanvas';
@@ -15,6 +16,7 @@ export function Stage() {
 
   return (
     <main
+      {...slideAreaMarker}
       className="stage"
       ref={stageRef}
       onPointerDown={(e) => {

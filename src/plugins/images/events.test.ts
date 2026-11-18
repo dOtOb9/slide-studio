@@ -24,6 +24,7 @@ function minimalContextRunningBaseUpdate(initial?: Model) {
       model = update(model, msg);
     },
     subscribe: () => () => {},
+    slideArea: () => null,
   };
   return { ctx, setModel: (m: Model) => (model = m) };
 }
