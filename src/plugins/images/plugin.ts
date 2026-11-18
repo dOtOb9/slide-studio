@@ -8,11 +8,11 @@ export type { ImagesMsg };
 
 const button = reactView(ImagesToolbar);
 
-const API_WITH_CHECK_IMAGE_FILE_AND_EXTENSION_OF = '1.3';
+const API_WITH_SLIDE_AREA_FOR_DROP_TARGET = '1.4';
 
 export const images: Plugin<ImagesMsg> = {
   name: 'images',
-  apiVersion: API_WITH_CHECK_IMAGE_FILE_AND_EXTENSION_OF,
+  apiVersion: API_WITH_SLIDE_AREA_FOR_DROP_TARGET,
   title: '画像',
   description: '画像を挿入する（ボタンでファイルを選ぶ・貼り付け・キャンバスへのドラッグ&ドロップ）',
   update: updateImages,

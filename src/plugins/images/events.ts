@@ -24,20 +24,19 @@ export function isTextTarget(target: EventTarget | null): boolean {
   return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target.isContentEditable;
 }
 
-const BASE_STAGE_CLASS_NOT_PROMISED_BY_PLUGIN_API = '.stage';
-
 function keepBrowserFromOpeningFileDroppedAnywhere(e: DragEvent) {
   e.preventDefault();
-}
-
-function dropAreaOf(target: EventTarget | null): HTMLElement | null {
-  return target instanceof Element ? target.closest<HTMLElement>(BASE_STAGE_CLASS_NOT_PROMISED_BY_PLUGIN_API) : null;
 }
 
 export function listenPasteAndDrop(
   ctx: PluginContext,
   insert: (files: File[], dispatch: PluginContext['dispatch']) => Promise<void> = insertImageFiles,
 ): () => void {
+  const dropAreaOf = (target: EventTarget | null): HTMLElement | null => {
+    const area = ctx.slideArea();
+    return area && target instanceof Node && area.contains(target) ? area : null;
+  };
+
   const onPaste = (e: ClipboardEvent) => {
     const leaveTextPasteToBrowser = ctx.getModel().editingId !== null || isTextTarget(e.target);
     if (leaveTextPasteToBrowser) return;
