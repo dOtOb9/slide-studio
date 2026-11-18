@@ -233,6 +233,7 @@ export default function myPlugin(api) {   // api: アプリの API（plugin-api 
 | 1.1 | 部品の見た目の約束（共通クラス `.button` / `.icon-button` と CSS 変数） |
 | 1.2 | images/ の画像（`Model.images`、Msg の `ImagesAdded`、`imagePathOf` / `sha256Hex` / `imagePath` / `isImagePath`） |
 | 1.3 | 受け取った画像のファイルを確かめる `checkImageFile` / `extensionOf`（画像の挿入のプラグインが、土台と同じ上限・同じ対応形式で断れるように） |
+
 型の一覧は [src/plugin-api/index.ts](src/plugin-api/index.ts)。
 
 読み込み: ツールバーのパズルのアイコン（プラグイン）→ ファイルのアイコン（ファイルから読み込む）か、URL を入れて → のアイコン

@@ -96,10 +96,11 @@ deck.html ─parse─▶ Deck（Model の一部）─serialize─▶ deck.html
 | プラグイン作者向けの約束事で、名前・型で表しきれないもの | README「プラグイン」（コードには残さない） |
 | 例外の理由（線の例外など） | 方針テストの中の表（`src/ui-policy.test.ts` の `BORDER_EXCEPTIONS`）や GitHub Actions の `name:` |
 
-- 残してよいのは**ツールへの指示**だけ（消すと動作や検査が変わるもの）: `/// <reference …/>`、`eslint-disable…`、`@ts-expect-error` / `@ts-ignore`、`/* @vite-ignore */`。
-  指示に説明を足さない（`// @vite-ignore: 理由` は説明つきのコメントとして落ちる）。
+- 残してよいのは**ツールへの指示**だけ（消すと動作や検査が変わるもの）: `/// <reference …/>`、`eslint-disable…`（ルール名の並びまで）、`@ts-expect-error` / `@ts-ignore`、`/* @vite-ignore */`。
+  `@ts-nocheck` は許さない。指示に説明を足さない（`// @vite-ignore: 理由`、`// @ts-expect-error 理由`、`// eslint-disable-next-line x -- 理由` は説明つきのコメントとして落ちる）。
+  理由が要るなら、指示を使わずに済む形にするか、名前・テスト名で表す。
 - `src/no-comments.test.ts` が、TypeScript のパーサーで本当のコメントだけを数えて確かめている（文字列・テンプレート・正規表現・JSX の文字の中の `//` は数えない）。
-  CSS・HTML・ワークフローの YAML は単純な一致で確かめる。新しい種類のコードのファイルを足したら、その glob に入るか確かめる。
+  CSS・HTML・ワークフローの YAML（行末の `#` も。引用符の中は数えない）は単純な一致で確かめる。新しい種類のコードのファイルを足したら、その glob に入るか確かめる。
 
 ### 外から来る値（Step 6 の再発防止）
 
@@ -213,7 +214,7 @@ store とのつなぎは `reactView` と `PluginSlot`（ctx）が受け持つ。
 - プラグインの部品も同じ見た目にする。共通のクラス名（README「プラグイン」の「部品の見た目」）を使う。
 - アイコンは `lucide-react`（同梱の部品）。アイコンだけのボタンは `components/IconButton.tsx` を使う。
 - `src/ui-policy.test.ts` が、src の CSS と `components/` を読んで上の方針（線・色の変数・`.button` / `.icon-button` の背景の上書き・IconButton）を確かめている。
-  線を例外として使うときは、`src/ui-policy.test.ts` の `BORDER_EXCEPTIONS` に「ファイル セレクタ」と理由を1行足す（CSS にはコメントを書かない）。
+  線を例外として使うときは、`src/ui-policy.test.ts` の `BORDER_EXCEPTIONS` に「ファイル セレクタ → 宣言」と理由を1行足す（宣言1つごと。同じセレクタに別の線を足すと落ちる。CSS にはコメントを書かない）。
   共通クラスの背景を場所ごとに変えるときは `:where(…) .button` のように詳細度を上げない形で書く（詳細度の高い上書きは、後に書いた hover・無効・押下中の色を消す）。
 
 ## ブラウザでの動作確認
