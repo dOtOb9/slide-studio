@@ -1,5 +1,3 @@
-// プラグインのテスト。わざと「プラグイン自身のモジュール」を最初に import している。
-// プラグインを作るエージェントが自然に書く順番で、循環 import が無いことの確認を兼ねる。
 import { shapes } from './plugin';
 
 import { describe, expect, it } from 'vitest';
@@ -9,7 +7,6 @@ import { parseDeck } from '../../model/parse';
 import sample from '../../samples/sample-deck.html?raw';
 import { listPlugins, registerPlugin } from '../host';
 
-// テストではアプリの起動（main.tsx）を通らないので、自分で登録する（テストファイルごとに登録簿は空から始まる）
 registerPlugin(shapes, 'builtin');
 
 const setup = () => update(initModel(parseDeck(sample), 't.html'), { type: 'SlideSelected', index: 1 });

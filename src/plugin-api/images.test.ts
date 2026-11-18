@@ -1,5 +1,3 @@
-// プラグインに公開した画像の API（1.2）。挿入のプラグインが「Blob → パス → ImagesAdded」をできること。
-
 import { describe, expect, it } from 'vitest';
 import { initModel } from '../app/model';
 import { update } from '../app/update';
@@ -16,7 +14,6 @@ import {
   sha256Hex,
 } from './index';
 
-// "abc" の SHA-256（FIPS 180-2 の例）
 const ABC = 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad';
 
 describe('画像の公開 API', () => {

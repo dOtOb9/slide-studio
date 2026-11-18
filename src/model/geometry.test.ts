@@ -22,7 +22,6 @@ describe('resizeRect', () => {
   });
 
   it('縦横比を保つ: 縮小方向でも変化の大きい方に合わせる', () => {
-    // 右下を左へ 100 引く → 幅が半分 → 高さも半分
     expect(resizeRect(box, handle(1, 1), -100, 0, true)).toEqual({ x: 100, w: 100, y: 100, h: 50 });
   });
 
@@ -31,7 +30,6 @@ describe('resizeRect', () => {
   });
 
   it('縦横比を保つ: 最小サイズでも比率が崩れない', () => {
-    // 200x100 を極端に縮める → 高さが 10 で止まり、幅は比率どおり 20
     expect(resizeRect(box, handle(1, 1), -1000, 0, true)).toEqual({ x: 100, w: 20, y: 100, h: 10 });
   });
 

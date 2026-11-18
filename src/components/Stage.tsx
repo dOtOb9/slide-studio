@@ -1,27 +1,26 @@
-// 中央の作業領域（view）。キャンバスを領域いっぱいに収まる大きさで表示する。
-
 import { useDispatch, useModel } from '../app/store';
 import { useElementSize } from '../hooks/useElementSize';
 import { EditorCanvas } from './EditorCanvas';
 
-const MARGIN = 48; // キャンバスの周りの余白（px）
+const MARGIN_AROUND_CANVAS_PX = 48;
 
 export function Stage() {
   const width = useModel((m) => m.deck.width);
   const height = useModel((m) => m.deck.height);
-  const hasSlide = useModel((m) => m.deck.slides.length > 0); // スライドが 0 枚のファイルもありうる
+  const hasSlide = useModel((m) => m.deck.slides.length > 0);
   const dispatch = useDispatch();
 
-  // 画面の大きさは見た目だけの情報なので、Model には入れずここで持つ
   const [stageRef, stage] = useElementSize<HTMLDivElement>();
-  const fitWidth = Math.max(0, Math.min(stage.width - MARGIN, ((stage.height - MARGIN) * width) / height));
+  const fitWidth = Math.max(0, Math.min(stage.width - MARGIN_AROUND_CANVAS_PX, ((stage.height - MARGIN_AROUND_CANVAS_PX) * width) / height));
 
   return (
     <main
       className="stage"
       ref={stageRef}
-      // スライドの外側（灰色の部分）をクリックしたら選択解除
-      onPointerDown={(e) => e.target === e.currentTarget && dispatch({ type: 'ElementSelected', id: null })}
+      onPointerDown={(e) => {
+        const clickedOutsideSlide = e.target === e.currentTarget;
+        if (clickedOutsideSlide) dispatch({ type: 'ElementSelected', id: null });
+      }}
     >
       {hasSlide && fitWidth > 0 && (
         <div className="canvas">

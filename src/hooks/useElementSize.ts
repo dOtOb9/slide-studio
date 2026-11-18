@@ -1,5 +1,3 @@
-// 要素の大きさを監視するフック。ウィンドウを広げるとキャンバスも追従する。
-
 import { useEffect, useRef, useState } from 'react';
 
 export function useElementSize<T extends HTMLElement>() {

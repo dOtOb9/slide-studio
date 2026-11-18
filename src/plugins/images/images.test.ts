@@ -1,4 +1,3 @@
-// 画像の挿入（update）のテスト。手本の plugins/shapes/shapes.test.ts と同じく、自分のモジュールを最初に import する。
 import { images } from './plugin';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -10,7 +9,6 @@ import sample from '../../samples/sample-deck.html?raw';
 import { registerPlugin, setPluginEnabled } from '../host';
 import { canInsertImages } from './update';
 
-// テストではアプリの起動（main.tsx）を通らないので、自分で登録する
 registerPlugin(images, 'builtin');
 
 const pathOf = (c: string) => `images/${c.repeat(64)}.png`;
@@ -18,7 +16,6 @@ const A = pathOf('a');
 const B = pathOf('b');
 const C = pathOf('c');
 
-/** サンプルの2枚目を表示し、A・B・C の中身を Model.images に入れた状態 */
 function setup(): Model {
   const m = update(initModel(parseDeck(sample), 't.html'), { type: 'SlideSelected', index: 1 });
   const blob = (s: string) => new Blob([s], { type: 'image/png' });
@@ -92,7 +89,6 @@ describe('images/Inserted', () => {
     const m0 = setup();
     const missing = pathOf('d');
     expect(insert(m0, [{ path: missing, width: 10, height: 10 }])).toBe(m0);
-    // 置けるものだけ置く
     const m = insert(m0, [
       { path: missing, width: 10, height: 10 },
       { path: A, width: 10, height: 10 },
@@ -116,7 +112,6 @@ describe('images/Inserted', () => {
     expect(canInsertImages(editing)).toBe(false);
     expect(insert(editing, item)).toBe(editing);
 
-    // ドラッグは測った位置（boxes）がある要素だけ始められる
     const measured = update(m0, { type: 'BoxesMeasured', boxes: [{ id: target, x: 0, y: 0, w: 10, h: 10 }] });
     const dragging = update(measured, { type: 'DragStarted', id: target, handle: null, pointer: { x: 0, y: 0 } });
     expect(canInsertImages(dragging)).toBe(false);
@@ -153,6 +148,11 @@ describe('images/Inserted の中身を確かめる（外から来る値）', () 
     const m = insert(setup(), [{ path: A, width: 'x', height: 1 }, { path: B, width: 10, height: 10 }, null]);
     expect(lastElements(m, 1)[0].attrs.src).toBe(B);
     expect(warn).toHaveBeenCalled();
+  });
+
+  it('大きさが中身の本当の大きさと合っているかまでは確かめない（ずれても表示が伸びるだけでアプリは落ちない）', () => {
+    const m = insert(setup(), [{ path: A, width: 7, height: 3 }]);
+    expect(lastElements(m, 1)[0].attrs.src).toBe(A);
   });
 });
 

@@ -1,13 +1,5 @@
-// ファイルの読み書き（Elm でいう Cmd: 外の世界との非同期のやり取り）。
-// ここは Model を変えない。読み書きが終わったら、呼び出し側が結果を Msg として送る。
-//
-// Chrome / Edge では File System Access API を使い、開いたファイルにそのまま上書き保存できる。
-// 隣の images/ フォルダの画像も、フォルダへのアクセスを許可してもらえば読み書きできる。
-// それ以外のブラウザでは、<input type="file"> で開き、ダウンロードで保存する（画像は埋め込む。io/commands.ts）。
-
 import { checkImageFile, IMAGE_DIR, mimeTypeOf, type SaveDestination } from '../model/images';
 
-/** File System Access API のうち、ここで使う部分だけの型（TypeScript の標準の型にはまだ無いもの） */
 interface FileHandle {
   kind: 'file';
   name: string;
@@ -17,7 +9,6 @@ interface FileHandle {
 interface DirectoryHandle {
   kind: 'directory';
   name: string;
-  /** handle がこのフォルダの中にあれば、そこまでの名前の並び（直下なら [ファイル名]）。外なら null */
   resolve(handle: FileHandle): Promise<string[] | null>;
   getDirectoryHandle(name: string, options?: { create?: boolean }): Promise<DirectoryHandle>;
   getFileHandle(name: string, options?: { create?: boolean }): Promise<FileHandle>;
@@ -30,72 +21,57 @@ interface DirectoryPickerOptions {
   startIn?: FileHandle;
   mode?: 'read' | 'readwrite';
 }
-interface FsWindow {
+interface WindowWithFileSystemAccessApiMissingFromTsLib {
   showOpenFilePicker?: (options?: PickerOptions) => Promise<FileHandle[]>;
   showSaveFilePicker?: (options?: PickerOptions) => Promise<FileHandle>;
   showDirectoryPicker?: (options?: DirectoryPickerOptions) => Promise<DirectoryHandle>;
 }
 
-const fsWindow = window as unknown as FsWindow;
+const fsWindow = window as unknown as WindowWithFileSystemAccessApiMissingFromTsLib;
 const PICKER_TYPES = [{ description: 'スライド (HTML)', accept: { 'text/html': ['.html', '.htm'] } }];
 
-/**
- * images/ に画像をファイルとして書けるか（保存先とフォルダの両方を選べるブラウザか）。
- * 書けなければ、保存するときに画像を data URI で埋め込む
- */
 const canWriteImageFiles = Boolean(fsWindow.showSaveFilePicker && fsWindow.showDirectoryPicker);
 
-/**
- * 今開いているファイルのハンドル（上書き保存の宛先）。
- * DOM の外の資源への参照なので Model には入れず、ここに置く
- */
-let currentHandle: FileHandle | null = null;
+let overwriteTargetOutsideModel: FileHandle | null = null;
 
-/**
- * 今開いているファイルがあるフォルダのハンドル（images/ の読み書きに使う）。ファイルのハンドルと同じ理由でここに置く。
- * ユーザーが許可したときだけ持つ。別のフォルダのファイルを開いた・保存したら捨てる
- */
-let currentDir: DirectoryHandle | null = null;
+let grantedFolderOfOpenedFile: DirectoryHandle | null = null;
 
-/** ユーザーがダイアログをキャンセルしたときの例外か */
-const isAbort = (e: unknown) => e instanceof DOMException && e.name === 'AbortError';
+const isUserCancel = (e: unknown) => e instanceof DOMException && e.name === 'AbortError';
 
-/** ファイルやフォルダが無いときの例外か */
 const isNotFound = (e: unknown) => e instanceof DOMException && e.name === 'NotFoundError';
 
-/** file が dir の直下にあるか */
+const fileNameInImageDir = (checkedImagePath: string) => checkedImagePath.slice(IMAGE_DIR.length + 1);
+
+const SOMEWHERE_ELSE_INCLUDING_DOWNLOADS: SaveDestination = { overwritesOpenedFile: false, directlyInGrantedFolder: false };
+
 async function isDirectlyIn(dir: DirectoryHandle, file: FileHandle): Promise<boolean> {
   const path = await dir.resolve(file);
   return path !== null && path.length === 1 && path[0] === file.name;
 }
 
-/**
- * ファイルを選んで読み込む。キャンセルされたら null。
- *   canReadFolder … 隣の images/ を読みに行けるか（File System Access API で開いたときだけ true）
- *   folderReady   … 前に許可されたフォルダに、開いたファイルがあるか（それなら許可を求めずに images/ を読める）
- */
+function switchOpenedFileOnlyAfterAllAwaitsSucceeded(handle: FileHandle, keepGrantedFolder: boolean) {
+  overwriteTargetOutsideModel = handle;
+  if (!keepGrantedFolder) grantedFolderOfOpenedFile = null;
+}
+
 export async function openFile(): Promise<{
   html: string;
   name: string;
   canReadFolder: boolean;
-  folderReady: boolean;
+  folderAlreadyGranted: boolean;
 } | null> {
   if (fsWindow.showOpenFilePicker) {
     try {
       const [handle] = await fsWindow.showOpenFilePicker({ types: PICKER_TYPES });
       const html = await (await handle.getFile()).text();
-      // 判定（await）を全部済ませてから、上書き保存の宛先とフォルダを続けて切り替える。
-      // 途中で例外が出たときに、宛先だけが新しいファイルに変わって前のデッキを書いてしまわないように
-      const keepDir = currentDir !== null && (await isDirectlyIn(currentDir, handle));
-      currentHandle = handle;
-      if (!keepDir) currentDir = null;
-      return { html, name: handle.name, canReadFolder: Boolean(fsWindow.showDirectoryPicker), folderReady: currentDir !== null };
+      const keepGrantedFolder = grantedFolderOfOpenedFile !== null && (await isDirectlyIn(grantedFolderOfOpenedFile, handle));
+      switchOpenedFileOnlyAfterAllAwaitsSucceeded(handle, keepGrantedFolder);
+      return { html, name: handle.name, canReadFolder: Boolean(fsWindow.showDirectoryPicker), folderAlreadyGranted: grantedFolderOfOpenedFile !== null };
     } catch (e) {
-      if (isAbort(e)) return null;
+      if (isUserCancel(e)) return null;
       throw e;
     }
   }
-  // File System Access API が無いブラウザ: 一時的な <input type="file"> で選ばせる
   const file = await new Promise<File | null>((resolve) => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -105,106 +81,93 @@ export async function openFile(): Promise<{
     input.click();
   });
   if (!file) return null;
-  currentHandle = null;
-  currentDir = null;
-  return { html: await file.text(), name: file.name, canReadFolder: false, folderReady: false };
+  overwriteTargetOutsideModel = null;
+  grantedFolderOfOpenedFile = null;
+  return { html: await file.text(), name: file.name, canReadFolder: false, folderAlreadyGranted: false };
 }
 
-/**
- * ファイルのあるフォルダを選ばせ、images/ を読み書きできるようにする。
- * 選んだフォルダが、ファイルのあるフォルダと違えば理由を付けて例外を出す。キャンセルなら null。
- */
 async function askFolder(file: FileHandle): Promise<DirectoryHandle | null> {
   if (!fsWindow.showDirectoryPicker) throw new Error('このブラウザではフォルダを選べません');
   let dir: DirectoryHandle;
   try {
     dir = await fsWindow.showDirectoryPicker({ startIn: file, mode: 'readwrite' });
   } catch (e) {
-    if (isAbort(e)) return null;
+    if (isUserCancel(e)) return null;
     throw e;
   }
-  // 別のフォルダを選ばれると、images/ を別の場所に読み書きしてしまうので断る
-  if (!(await isDirectlyIn(dir, file))) {
+  const otherFolderWouldReadAndWriteWrongImages = !(await isDirectlyIn(dir, file));
+  if (otherFolderWouldReadAndWriteWrongImages) {
     throw new Error(`「${file.name}」があるフォルダを選んでください（選んだフォルダ: ${dir.name}）`);
   }
   return dir;
 }
 
-/**
- * 開いているファイルのフォルダへのアクセスを求める（「フォルダへのアクセスを許可」）。キャンセルなら false。
- * すでに許可されていれば選ばせない（images/ に画像を置いてから押し直したときは、読み直すだけ）
- */
 export async function requestFolder(): Promise<boolean> {
-  if (!currentHandle) throw new Error('開いたファイルの場所がわかりません');
-  if (currentDir) return true;
-  const dir = await askFolder(currentHandle);
+  if (!overwriteTargetOutsideModel) throw new Error('開いたファイルの場所がわかりません');
+  if (grantedFolderOfOpenedFile) return true;
+  const dir = await askFolder(overwriteTargetOutsideModel);
   if (!dir) return false;
-  currentDir = dir;
+  grantedFolderOfOpenedFile = dir;
   return true;
 }
 
-/**
- * 許可されたフォルダの images/ から、指定したパスの画像を読む（フォルダが無ければ何も読まない）。
- * 読めなかったもの（無い・画像でない・大きすぎる など）は problems に理由を入れ、ほかの画像は読む。
- * 読んでいる間に別のファイルを開いたら、結果は捨てる（stale = true）
- */
 export async function readImageFiles(
   paths: string[],
-): Promise<{ images: Record<string, Blob>; problems: string[]; stale: boolean }> {
+): Promise<{ images: Record<string, Blob>; problems: string[]; openedAnotherFileWhileReading: boolean }> {
   const images: Record<string, Blob> = {};
   const problems: string[] = [];
-  const dir = currentDir;
-  const file = currentHandle;
-  if (!dir || paths.length === 0) return { images, problems, stale: false };
+  const dir = grantedFolderOfOpenedFile;
+  const file = overwriteTargetOutsideModel;
+  if (!dir || paths.length === 0) return { images, problems, openedAnotherFileWhileReading: false };
 
   let imageDir: DirectoryHandle;
   try {
     imageDir = await dir.getDirectoryHandle(IMAGE_DIR);
   } catch (e) {
     if (!isNotFound(e)) throw e;
-    return { images, problems: [`${IMAGE_DIR}/ フォルダがありません`], stale: currentHandle !== file };
+    return { images, problems: [`${IMAGE_DIR}/ フォルダがありません`], openedAnotherFileWhileReading: overwriteTargetOutsideModel !== file };
   }
   for (const path of paths) {
-    const name = path.slice(IMAGE_DIR.length + 1); // パスは model/images.ts の isImagePath で確かめ済み（images/ 直下の1ファイル）
     try {
-      const value: unknown = await (await imageDir.getFileHandle(name)).getFile();
+      const value: unknown = await (await imageDir.getFileHandle(fileNameInImageDir(path))).getFile();
       const problem = checkImageFile(value);
       if (problem) {
         problems.push(`${path}: ${problem}`);
         continue;
       }
-      // 型が空のとき（ブラウザが拡張子から決められなかった）のために、拡張子から決めた型を付け直す
-      const blob = value as File;
-      images[path] = blob.type ? blob : new Blob([blob], { type: mimeTypeOf(path) ?? '' });
+      images[path] = withTypeFromExtensionIfBrowserLeftItEmpty(value as File, path);
     } catch (e) {
       problems.push(`${path}: ${isNotFound(e) ? '見つかりません' : String(e)}`);
     }
   }
-  return { images, problems, stale: currentHandle !== file };
+  return { images, problems, openedAnotherFileWhileReading: overwriteTargetOutsideModel !== file };
 }
 
-/** フォルダの images/ に画像を書く。同じ名前のファイルがあれば書かない（名前が中身から決まるため） */
-async function writeImageFiles(dir: DirectoryHandle, images: Record<string, Blob>) {
+function withTypeFromExtensionIfBrowserLeftItEmpty(file: File, path: string): Blob {
+  return file.type ? file : new Blob([file], { type: mimeTypeOf(path) ?? '' });
+}
+
+async function exists(dir: DirectoryHandle, name: string): Promise<boolean> {
+  try {
+    await dir.getFileHandle(name);
+    return true;
+  } catch (e) {
+    if (!isNotFound(e)) throw e;
+    return false;
+  }
+}
+
+async function writeImageFilesSkippingExistingSinceNameIsContentHash(dir: DirectoryHandle, images: Record<string, Blob>) {
   const imageDir = await dir.getDirectoryHandle(IMAGE_DIR, { create: true });
   for (const [path, blob] of Object.entries(images)) {
-    const name = path.slice(IMAGE_DIR.length + 1);
-    try {
-      await imageDir.getFileHandle(name);
-      continue; // すでにある
-    } catch (e) {
-      if (!isNotFound(e)) throw e;
-    }
+    const name = fileNameInImageDir(path);
+    if (await exists(imageDir, name)) continue;
     const writable = await (await imageDir.getFileHandle(name, { create: true })).createWritable();
     await writable.write(blob);
     await writable.close();
   }
 }
 
-/**
- * 保存のためにフォルダを得て、images/ に画像を書く。書けたら true。
- * 書けないとき（フォルダの選択をキャンセルした・選べないフォルダ（デスクトップ直下など）・別のフォルダを選んだ・
- * 書き込みに失敗した）は false を返し、理由はコンソールに出す（呼び出し側が画像を埋め込んで保存する）
- */
 async function writeImagesForSave(
   target: FileHandle,
   dir: DirectoryHandle | null,
@@ -216,7 +179,7 @@ async function writeImagesForSave(
       console.warn('フォルダが選ばれなかったので、画像を deck.html に埋め込みます');
       return { written: false, dir: null };
     }
-    await writeImageFiles(dir, images);
+    await writeImageFilesSkippingExistingSinceNameIsContentHash(dir, images);
     return { written: true, dir };
   } catch (e) {
     console.warn('images/ に画像を書けなかったので、deck.html に埋め込みます', e);
@@ -224,74 +187,56 @@ async function writeImagesForSave(
   }
 }
 
-/**
- * 保存する。保存したファイル名・隣のフォルダを読めるか・画像を埋め込みに切り替えたかを返す（キャンセルされたら null）。
- *   saveAs = false … 開いたファイルがあれば上書き。無ければ「名前を付けて保存」になる
- *   saveAs = true  … 常に保存先を選ばせる
- *   images … 中身を書き出す画像（model/images.ts の imagesToWrite）。
- *            1つでもあれば images/ に書く。フォルダの許可がまだなら、ここでフォルダを選ばせる。
- *            フォルダに書けなければ、画像を data URI で deck.html に埋め込む（オーナーの決定 2026-11-17）
- *   html   … 保存する HTML を作る関数。inFolder = false なら画像を埋め込んだ HTML を返す（io/images.ts の deckHtml）
- *   proceed … 保存先がわかったところで1回だけ呼ぶ。false なら何も書かずにやめる（null を返す）。
- *             保存先の事実（上書きか・許可済みのフォルダの直下か）を渡すだけで、聞くかどうかは呼び出し側
- *             （model/images.ts の imagesLostBySave）が決める
- * 保存先を選んだあとは、画像がどうなっても HTML は必ず書く（名前を付けて保存で、空のファイルを残さないように）。
- * ただし proceed が false のときを除く（ピッカーの後にやめると、ピッカーで作られた空のファイルが残る。README「画像（images/）」）。
- * 画像を先に書き、最後に HTML を書く
- */
 export async function saveFile(
   name: string,
   saveAs: boolean,
   images: Record<string, Blob>,
-  html: (inFolder: boolean) => Promise<string>,
+  html: (imagesWrittenToFolder: boolean) => Promise<string>,
   proceed: (dest: SaveDestination) => boolean,
 ): Promise<{ name: string; canReadFolder: boolean; embedded: boolean } | null> {
   if (fsWindow.showSaveFilePicker) {
     try {
-      const pick = saveAs || !currentHandle;
-      const granted = currentDir; // ピッカーを開いている間に変わっても、聞くのが1回になるように先に取っておく
-      // フォルダの許可が無ければ、どこを選んでも「許可済みのフォルダの直下」にはならない。
-      // そのときはピッカーを開く前に聞く（ブラウザはピッカーで選んだ時点で保存先のファイルを作るので、
-      // 後で聞いてやめると空のファイルが残る）
-      if (pick && !granted && !proceed({ overwrite: false, inGrantedFolder: false })) return null;
+      const showsPicker = saveAs || !overwriteTargetOutsideModel;
+      const grantedBeforePicker = grantedFolderOfOpenedFile;
+      const askBeforePickerSinceBrowserCreatesFileOnPick = showsPicker && !grantedBeforePicker;
+      if (askBeforePickerSinceBrowserCreatesFileOnPick && !proceed(SOMEWHERE_ELSE_INCLUDING_DOWNLOADS)) return null;
       const target =
-        saveAs || !currentHandle
+        saveAs || !overwriteTargetOutsideModel
           ? await fsWindow.showSaveFilePicker({ suggestedName: name, types: PICKER_TYPES })
-          : currentHandle;
-      const inGrantedFolder = granted !== null && (await isDirectlyIn(granted, target));
-      // 上書き保存と、許可済みのフォルダがあるときの名前を付けて保存は、ここで聞く
-      // （後者は選んだ場所がその直下かで決まるので、ピッカーの後になる。やめるとピッカーで作られた空のファイルが残る。
-      // README「画像（images/）」）
-      if ((!pick || granted) && !proceed({ overwrite: !pick, inGrantedFolder })) return null;
-      // 許可済みのフォルダは、保存先がその直下にあるときだけ使う（名前を付けて別のフォルダに保存したら捨てる）
-      let dir = inGrantedFolder ? granted : null;
-      let inFolder = true; // 書き出す画像が無ければ、HTML はパスのまま
-      let embedded = false; // フォルダに書けず、埋め込みに切り替えたか（知らせるため）
+          : overwriteTargetOutsideModel;
+      const directlyInGrantedFolder = grantedBeforePicker !== null && (await isDirectlyIn(grantedBeforePicker, target));
+      const destinationKnownOnlyAfterPicker = !askBeforePickerSinceBrowserCreatesFileOnPick;
+      if (destinationKnownOnlyAfterPicker && !proceed({ overwritesOpenedFile: !showsPicker, directlyInGrantedFolder })) return null;
+      let folderForTarget = directlyInGrantedFolder ? grantedBeforePicker : null;
+      let imagesWrittenToFolder = true;
+      let embeddedSoUserShouldBeTold = false;
       if (Object.keys(images).length > 0) {
         if (canWriteImageFiles) {
-          const result = await writeImagesForSave(target, dir, images);
-          dir = result.dir;
-          inFolder = result.written;
-          embedded = !result.written;
+          const result = await writeImagesForSave(target, folderForTarget, images);
+          folderForTarget = result.dir;
+          imagesWrittenToFolder = result.written;
+          embeddedSoUserShouldBeTold = !result.written;
         } else {
-          inFolder = false; // フォルダを選べないブラウザ: いつも埋め込む（知らせない）
+          imagesWrittenToFolder = false;
         }
       }
-      const text = await html(inFolder);
+      const htmlWrittenLastEvenIfImagesFailed = await html(imagesWrittenToFolder);
       const writable = await target.createWritable();
-      await writable.write(text);
+      await writable.write(htmlWrittenLastEvenIfImagesFailed);
       await writable.close();
-      currentHandle = target;
-      currentDir = dir;
-      return { name: target.name, canReadFolder: Boolean(fsWindow.showDirectoryPicker), embedded };
+      overwriteTargetOutsideModel = target;
+      grantedFolderOfOpenedFile = folderForTarget;
+      return {
+        name: target.name,
+        canReadFolder: Boolean(fsWindow.showDirectoryPicker),
+        embedded: embeddedSoUserShouldBeTold,
+      };
     } catch (e) {
-      if (isAbort(e)) return null;
+      if (isUserCancel(e)) return null;
       throw e;
     }
   }
-  // File System Access API が無いブラウザ: 画像を埋め込んだ1ファイルを、ダウンロードとして保存する。
-  // ダウンロード先は、開いたファイルとは別の場所とみなす（中身の無い画像は、そこでは表示されない）
-  if (!proceed({ overwrite: false, inGrantedFolder: false })) return null;
+  if (!proceed(SOMEWHERE_ELSE_INCLUDING_DOWNLOADS)) return null;
   const url = URL.createObjectURL(new Blob([await html(false)], { type: 'text/html' }));
   const a = document.createElement('a');
   a.href = url;

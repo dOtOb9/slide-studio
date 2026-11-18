@@ -1,11 +1,5 @@
-// 位置・サイズの計算（React に依存しない純粋な関数）。
-
 import type { Rect } from './types';
 
-/**
- * リサイズ用の 8 つのハンドル。「どちらの辺が動くか」を hx, hy で表す:
- *   hx = -1 … 左辺が動く / 0 … 横方向は変えない / 1 … 右辺が動く（hy は上下で同様）
- */
 export const HANDLES = [
   { name: 'nw', hx: -1, hy: -1 },
   { name: 'n', hx: 0, hy: -1 },
@@ -19,40 +13,46 @@ export const HANDLES = [
 
 export type Handle = Pick<(typeof HANDLES)[number], 'hx' | 'hy'>;
 
-const MIN_SIZE = 10; // これ以上は縮めない（スライド px）
+const MIN_SIZE_SLIDE_PX = 10;
 
-/**
- * ハンドルを dx, dy（スライド px）動かしたときの新しい位置・サイズ。変わった項目だけを返す。
- * 例: 左上のハンドルを右下へ引くと、幅は縮み、左端は右へ動く（右下の角は固定）。
- */
+const LEFT_OR_TOP_EDGE_MOVES = -1;
+const AXIS_UNCHANGED = 0;
+
+function scaleFollowingLargerChange(box: Rect, w: number, h: number): number {
+  const sx = w / box.w;
+  const sy = h / box.h;
+  return Math.abs(sx - 1) > Math.abs(sy - 1) ? sx : sy;
+}
+
+function minScaleKeepingRatioAboveMinSize(box: Rect): number {
+  return Math.max(MIN_SIZE_SLIDE_PX / box.w, MIN_SIZE_SLIDE_PX / box.h);
+}
+
 export function resizeRect(box: Rect, handle: Handle, dx: number, dy: number, keepRatio: boolean): Partial<Rect> {
   const { hx, hy } = handle;
   let w = box.w + hx * dx;
   let h = box.h + hy * dy;
 
-  // 角のハンドルで縦横比を保つ。
-  // 倍率 s を「元の大きさからの変化が大きい方」（拡大でも縮小でも）に合わせ、幅・高さの両方に掛ける。
-  // 幅か高さが 0 の要素は比率が定義できないので対象外（0 で割って NaN になるのを防ぐ）
-  if (keepRatio && hx !== 0 && hy !== 0 && box.w > 0 && box.h > 0) {
-    const sx = w / box.w;
-    const sy = h / box.h;
-    let s = Math.abs(sx - 1) > Math.abs(sy - 1) ? sx : sy;
-    // 最小サイズで片側だけ切り詰めると比率が崩れるので、倍率の段階で下限を掛ける
-    s = Math.max(s, MIN_SIZE / box.w, MIN_SIZE / box.h);
+  const isCornerHandle = hx !== AXIS_UNCHANGED && hy !== AXIS_UNCHANGED;
+  const ratioIsDefined = box.w > 0 && box.h > 0;
+  if (keepRatio && isCornerHandle && ratioIsDefined) {
+    const s = Math.max(scaleFollowingLargerChange(box, w, h), minScaleKeepingRatioAboveMinSize(box));
     w = box.w * s;
     h = box.h * s;
   }
-  w = Math.max(MIN_SIZE, w);
-  h = Math.max(MIN_SIZE, h);
+  w = Math.max(MIN_SIZE_SLIDE_PX, w);
+  h = Math.max(MIN_SIZE_SLIDE_PX, h);
 
   const out: Partial<Rect> = {};
-  if (hx !== 0) {
+  if (hx !== AXIS_UNCHANGED) {
     out.w = w;
-    out.x = hx < 0 ? box.x + box.w - w : box.x; // 左辺を動かすときは右端を固定する
+    const xKeepingRightEdge = box.x + box.w - w;
+    out.x = hx === LEFT_OR_TOP_EDGE_MOVES ? xKeepingRightEdge : box.x;
   }
-  if (hy !== 0) {
+  if (hy !== AXIS_UNCHANGED) {
     out.h = h;
-    out.y = hy < 0 ? box.y + box.h - h : box.y; // 上辺を動かすときは下端を固定する
+    const yKeepingBottomEdge = box.y + box.h - h;
+    out.y = hy === LEFT_OR_TOP_EDGE_MOVES ? yKeepingBottomEdge : box.y;
   }
   return out;
 }

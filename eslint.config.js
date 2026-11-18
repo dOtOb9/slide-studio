@@ -4,6 +4,15 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 
+const nodeToolsForCiWrittenAsMjsNotTypeScript = {
+  extends: [js.configs.recommended],
+  files: ['scripts/**/*.mjs'],
+  languageOptions: {
+    ecmaVersion: 2022,
+    globals: globals.node,
+  },
+}
+
 export default tseslint.config(
   { ignores: ['dist'] },
   {
@@ -25,13 +34,5 @@ export default tseslint.config(
       ],
     },
   },
-  {
-    // scripts/ は Node で動かす道具（CI から呼ぶ検査など）。TypeScript ではなく .mjs で書く
-    extends: [js.configs.recommended],
-    files: ['scripts/**/*.mjs'],
-    languageOptions: {
-      ecmaVersion: 2022,
-      globals: globals.node,
-    },
-  },
+  nodeToolsForCiWrittenAsMjsNotTypeScript,
 )

@@ -1,5 +1,3 @@
-// images/ の画像の中身（Model.images）と、それを扱う Msg のテスト。
-
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { insertElement } from '../model/commands';
 import { parseDeck } from '../model/parse';
@@ -16,25 +14,24 @@ const deckWith = (...srcs: string[]) =>
 
 const png = (text = 'x') => new Blob([text], { type: 'image/png' });
 
-/** 画像を2つ使うデッキを、フォルダを読める状態で開いた Model */
-const opened = (): Model =>
+const openedWithTwoImagesAndFolderAccess = (): Model =>
   update(initModel(deckWith(), 'x.html'), { type: 'DeckLoaded', deck: deckWith(A, B), fileName: 'a.html', canReadFolder: true });
 
-const run = (model: Model, ...msgs: Msg[]) => msgs.reduce(update, model);
+const runMsgsInOrder = (model: Model, ...msgs: Msg[]) => msgs.reduce(update, model);
 
 afterEach(() => vi.restoreAllMocks());
 
 describe('ImagesAdded', () => {
   it('届いた画像を Model.images に加える', () => {
     const a = png();
-    const m = update(opened(), { type: 'ImagesAdded', images: { [A]: a } });
+    const m = update(openedWithTwoImagesAndFolderAccess(), { type: 'ImagesAdded', images: { [A]: a } });
     expect(m.images).toEqual({ [A]: a });
     expect(m.images[A]).toBe(a);
   });
 
   it('すでに持っている画像は上書きしない。新しいものが無ければ Model をそのまま返す', () => {
     const first = png('first');
-    const m1 = update(opened(), { type: 'ImagesAdded', images: { [A]: first } });
+    const m1 = update(openedWithTwoImagesAndFolderAccess(), { type: 'ImagesAdded', images: { [A]: first } });
     const m2 = update(m1, { type: 'ImagesAdded', images: { [A]: png('second') } });
     expect(m2).toBe(m1);
     const b = png();
@@ -44,7 +41,7 @@ describe('ImagesAdded', () => {
   });
 
   it('Deck・履歴・未保存の判定に影響しない', () => {
-    const m0 = opened();
+    const m0 = openedWithTwoImagesAndFolderAccess();
     const m = update(m0, { type: 'ImagesAdded', images: { [A]: png() } });
     expect(m.deck).toBe(m0.deck);
     expect(m.history).toBe(m0.history);
@@ -52,8 +49,8 @@ describe('ImagesAdded', () => {
   });
 
   it('元に戻しても画像は残る（画像を置く操作を戻してから、やり直しても表示できる）', () => {
-    const m0 = opened();
-    const withImage = run(m0, { type: 'ImagesAdded', images: { [A]: png() } });
+    const m0 = openedWithTwoImagesAndFolderAccess();
+    const withImage = runMsgsInOrder(m0, { type: 'ImagesAdded', images: { [A]: png() } });
     const inserted = edit(withImage, insertElement(withImage.deck, withImage.deck.slides[0].id, { id: 'n1', tag: 'img', rect: {}, style: '', attrs: { src: A }, html: '' }));
     const undone = update(inserted, { type: 'Undo' });
     expect(undone.images[A]).toBeDefined();
@@ -64,14 +61,14 @@ describe('ImagesAdded', () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
     const a = png();
     const bad = { [A]: a, 'images/../x.png': png(), [B]: 'not a blob', 'images/c.png': null } as unknown as Record<string, Blob>;
-    const m = update(opened(), { type: 'ImagesAdded', images: bad });
+    const m = update(openedWithTwoImagesAndFolderAccess(), { type: 'ImagesAdded', images: bad });
     expect(m.images).toEqual({ [A]: a });
     expect(error).toHaveBeenCalledTimes(1);
   });
 
   it('外から来る値: images がオブジェクトでなければ何も変えない（落ちない）', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    const m0 = opened();
+    const m0 = openedWithTwoImagesAndFolderAccess();
     for (const bad of [undefined, null, 'images/a.png', 42, [png()]]) {
       expect(update(m0, { type: 'ImagesAdded', images: bad } as unknown as Msg)).toBe(m0);
     }
@@ -80,14 +77,14 @@ describe('ImagesAdded', () => {
 
 describe('別のファイルを開く・保存する', () => {
   it('DeckLoaded で画像は空になり、フォルダを読めるかは Msg の値になる（省略なら false）', () => {
-    const m = update(opened(), { type: 'ImagesAdded', images: { [A]: png() } });
+    const m = update(openedWithTwoImagesAndFolderAccess(), { type: 'ImagesAdded', images: { [A]: png() } });
     const loaded = update(m, { type: 'DeckLoaded', deck: deckWith(A), fileName: 'b.html' });
     expect(loaded.images).toEqual({});
     expect(loaded.canReadFolder).toBe(false);
   });
 
   it('DeckSaved は画像を残し、フォルダを読めるかは値があれば更新する', () => {
-    const m = update(opened(), { type: 'ImagesAdded', images: { [A]: png() } });
+    const m = update(openedWithTwoImagesAndFolderAccess(), { type: 'ImagesAdded', images: { [A]: png() } });
     const saved = update(m, { type: 'DeckSaved', deck: m.deck, fileName: 'c.html' });
     expect(saved.images).toBe(m.images);
     expect(saved.canReadFolder).toBe(true);
@@ -97,7 +94,7 @@ describe('別のファイルを開く・保存する', () => {
 
 describe('needsFolderAccess（「フォルダへのアクセスを許可」を出すか）', () => {
   it('フォルダを読めて、中身の無い画像があるときだけ true', () => {
-    const m0 = opened();
+    const m0 = openedWithTwoImagesAndFolderAccess();
     expect(needsFolderAccess(m0)).toBe(true);
     const half = update(m0, { type: 'ImagesAdded', images: { [A]: png() } });
     expect(needsFolderAccess(half)).toBe(true);
@@ -106,13 +103,13 @@ describe('needsFolderAccess（「フォルダへのアクセスを許可」を�
   });
 
   it('場所のわからないファイル（<input> で開いた・サンプル）では出さない', () => {
-    const m = update(opened(), { type: 'DeckLoaded', deck: deckWith(A), fileName: 'b.html', canReadFolder: false });
+    const m = update(openedWithTwoImagesAndFolderAccess(), { type: 'DeckLoaded', deck: deckWith(A), fileName: 'b.html', canReadFolder: false });
     expect(needsFolderAccess(m)).toBe(false);
   });
 
   it('images/ の画像を使っていなければ出さない（data URI・管理対象外のパスだけ）', () => {
     const deck = deckWith('data:image/png;base64,AAAA', 'images/../x.png', 'https://example.com/a.png');
-    const m = update(opened(), { type: 'DeckLoaded', deck, fileName: 'b.html', canReadFolder: true });
+    const m = update(openedWithTwoImagesAndFolderAccess(), { type: 'DeckLoaded', deck, fileName: 'b.html', canReadFolder: true });
     expect(needsFolderAccess(m)).toBe(false);
   });
 });

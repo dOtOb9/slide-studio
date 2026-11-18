@@ -1,9 +1,5 @@
-// HTML 文字列 → Deck への変換。
-// ブラウザ標準の DOMParser で HTML を解析し、必要な情報だけを取り出す。
-
 import type { Deck, Layout, Placeholder, Rect, Slide, SlideElement } from './types';
 
-/** Rect のキーと CSS プロパティの対応 */
 export const GEOMETRY: Record<keyof Rect, string> = {
   x: 'left',
   y: 'top',
@@ -11,8 +7,7 @@ export const GEOMETRY: Record<keyof Rect, string> = {
   h: 'height',
 };
 
-/** ファイルには保存しない属性（アプリが別の欄で管理するもの） */
-const MANAGED_ATTRS = new Set(['style', 'data-ph', 'data-el']);
+const ATTRS_KEPT_IN_OTHER_FIELDS_NOT_IN_ATTRS = new Set(['style', 'data-ph', 'data-el']);
 
 let seq = 0;
 export const newId = (prefix = 'e') => `${prefix}${++seq}`;
@@ -22,10 +17,6 @@ function parsePx(value: string): number | undefined {
   return m ? Number(m[1]) : undefined;
 }
 
-/**
- * 要素の style から left/top/width/height(px) を取り出し、
- * 残りのスタイルを文字列で返す。
- */
 function splitStyle(el: Element): { rect: Partial<Rect>; style: string } {
   const rect: Partial<Rect> = {};
   const style = (el as HTMLElement).style;
@@ -42,7 +33,7 @@ function splitStyle(el: Element): { rect: Partial<Rect>; style: string } {
 function otherAttrs(el: Element): Record<string, string> {
   const attrs: Record<string, string> = {};
   for (const a of Array.from(el.attributes)) {
-    if (!MANAGED_ATTRS.has(a.name)) attrs[a.name] = a.value;
+    if (!ATTRS_KEPT_IN_OTHER_FIELDS_NOT_IN_ATTRS.has(a.name)) attrs[a.name] = a.value;
   }
   return attrs;
 }
@@ -69,7 +60,6 @@ function parseElement(el: Element): SlideElement {
   };
 }
 
-/** 発表者ノートの要素か（スライド上の要素としては扱わない） */
 const isNotes = (el: Element) => el.tagName === 'ASIDE' && el.hasAttribute('data-notes');
 
 function parseSlide(section: Element): Slide {
@@ -77,17 +67,21 @@ function parseSlide(section: Element): Slide {
   return {
     id: newId('s'),
     layout: section.getAttribute('data-layout') ?? 'blank',
-    // section の直下の要素は、ノート以外すべてスライド上の要素として扱う。
-    // data-el が付いていなくても受け入れる（AI が付け忘れても壊れないように）
-    elements: children.filter((el) => !isNotes(el)).map(parseElement),
-    // ノートはプレーンテキストとして読む（タグが書かれていても文字だけを取り出す）。
-    // 複数書かれていたら改行でつなぐ（保存すると1つにまとまる）
-    notes: children
-      .filter(isNotes)
-      .map((a) => a.textContent?.trim() ?? '')
-      .filter(Boolean)
-      .join('\n'),
+    elements: everyChildExceptNotesEvenWithoutDataEl(children).map(parseElement),
+    notes: notesAsPlainTextJoinedByNewline(children),
   };
+}
+
+function everyChildExceptNotesEvenWithoutDataEl(children: Element[]): Element[] {
+  return children.filter((el) => !isNotes(el));
+}
+
+function notesAsPlainTextJoinedByNewline(children: Element[]): string {
+  return children
+    .filter(isNotes)
+    .map((a) => a.textContent?.trim() ?? '')
+    .filter(Boolean)
+    .join('\n');
 }
 
 export function parseDeck(html: string): Deck {

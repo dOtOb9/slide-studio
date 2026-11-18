@@ -94,7 +94,6 @@ describe('使っている画像の一覧', () => {
 </body>`);
 
   it('全スライドの img 要素の管理対象の src を、重複なく出てきた順に返す', () => {
-    // 要素の中身の <img>、data URI、外に出るパス、img 以外の要素の src は対象外
     expect(usedImagePaths(deck)).toEqual(['images/a.png', 'images/b.jpg', 'images/c.svg']);
   });
 
@@ -111,7 +110,9 @@ describe('使っている画像の一覧', () => {
 describe('外から来る値: images/ から読んだファイル（checkImageFile）', () => {
   it('画像のファイルなら null（読んでよい）', () => {
     expect(checkImageFile(new File(['x'], 'a.png', { type: 'image/png' }))).toBeNull();
-    // 型が空（ブラウザが拡張子から決められなかった）でも、パスで拡張子を確かめているので通す
+  });
+
+  it('ブラウザが拡張子から型を決められず型が空でも通す（拡張子は isImagePath がパスで確かめている）', () => {
     expect(checkImageFile(new File(['x'], 'a.avif', { type: '' }))).toBeNull();
   });
 
@@ -121,10 +122,9 @@ describe('外から来る値: images/ から読んだファイル（checkImageFi
     expect(checkImageFile(new Blob(['x'], { type: 'image/png' }))).toMatch(/ファイルではありません/);
     expect(checkImageFile(new File([], 'a.png', { type: 'image/png' }))).toMatch(/空/);
     expect(checkImageFile(new File(['<html>'], 'a.png', { type: 'text/html' }))).toMatch(/画像ではありません/);
-    // 本当に 50MB を作らないよう、size だけ大きく見せる
-    const big = new File(['x'], 'a.png', { type: 'image/png' });
-    Object.defineProperty(big, 'size', { value: MAX_IMAGE_BYTES + 1 });
-    expect(checkImageFile(big)).toMatch(/大きすぎます/);
+    const bigLookingFileWithoutAllocating50MB = new File(['x'], 'a.png', { type: 'image/png' });
+    Object.defineProperty(bigLookingFileWithoutAllocating50MB, 'size', { value: MAX_IMAGE_BYTES + 1 });
+    expect(checkImageFile(bigLookingFileWithoutAllocating50MB)).toMatch(/大きすぎます/);
   });
 });
 
@@ -144,6 +144,11 @@ describe('外から来る値: ImagesAdded の images 欄（acceptImages）', () 
     expect(rejected).toEqual(['images/../a.png', 'data:image/png;base64,AAAA', 'images/b.png', 'images/c.png', 'images/d.png']);
   });
 
+  it('中身が本当にその形式の画像か・名前が中身のハッシュと一致するかは確かめない（表示が崩れるだけでアプリは落ちないため）', () => {
+    const notReallyPng = new Blob(['<html>'], { type: 'text/html' });
+    expect(acceptImages({ 'images/not-a-hash.png': notReallyPng }).images).toEqual({ 'images/not-a-hash.png': notReallyPng });
+  });
+
   it('オブジェクトでなければ何も受け入れない', () => {
     for (const bad of [undefined, null, 'images/a.png', 1, [new Blob(['x'])]]) {
       const { images, rejected } = acceptImages(bad);
@@ -152,8 +157,6 @@ describe('外から来る値: ImagesAdded の images 欄（acceptImages）', () 
     }
   });
 });
-
-// --- ファイル形式と表示（parse / serialize / render） ------------------------------
 
 describe('images/ の画像とファイル形式', () => {
   const html = `<!doctype html><body>
@@ -189,9 +192,8 @@ describe('images/ の画像とファイル形式', () => {
       'data:image/svg+xml;base64,PHN2Zy8+',
       'images/../outside.png',
       'https://example.com/a.png',
-      `<img src="images/${HASH}.png">`, // 要素の中身の <img> は対象外
+      `<img src="images/${HASH}.png">`,
     ]);
-    // 元の Deck は変えない
     expect(deck.slides[0].elements[0].attrs.src).toBe(`images/${HASH}.png`);
   });
 
@@ -211,7 +213,6 @@ describe('images/ の画像とファイル形式', () => {
       'https://example.com/a.png',
     ]);
     expect(doc.querySelector('section > div img')!.getAttribute('src')).toBe(`images/${HASH}.png`);
-    // ほかの属性は残る
     expect(doc.querySelector('section > img')!.getAttribute('alt')).toBe('写真');
   });
 
@@ -228,7 +229,7 @@ describe('imagesToWrite（保存で中身を書き出す画像。Step 8 audit-1 
     const deck = parseDeck(`<body><section><img data-el src="${A}"><img data-el src="${B}"><img data-el src="${A}"></section></body>`);
     const a = new Blob(['a']);
     const c = new Blob(['c']);
-    const out = imagesToWrite(deck, { [A]: a, [C]: c }); // B は中身が無い、C は使っていない
+    const out = imagesToWrite(deck, { [A]: a, [C]: c });
     expect(Object.keys(out)).toEqual([A]);
     expect(out[A]).toBe(a);
   });
@@ -239,26 +240,26 @@ describe('imagesLostBySave（別の場所への保存で表示されなくなる
   const B = `images/${'b'.repeat(64)}.png`;
   const C = `images/${'c'.repeat(64)}.png`;
   const deck = parseDeck(`<body><section><img data-el src="${A}"><img data-el src="${B}"></section><section><img data-el src="${C}"></section></body>`);
-  const images = { [A]: new Blob(['a']) }; // B と C は中身が無い
+  const images = { [A]: new Blob(['a']) };
 
   it('別のフォルダ（上書きでなく、許可済みのフォルダの直下でもない）なら、中身の無い画像を返す', () => {
-    expect(imagesLostBySave(deck, images, { overwrite: false, inGrantedFolder: false })).toEqual([B, C]);
+    expect(imagesLostBySave(deck, images, { overwritesOpenedFile: false, directlyInGrantedFolder: false })).toEqual([B, C]);
   });
 
   it('上書き保存では何も返さない（中身の無い画像はそこの images/ にあるはず）', () => {
-    expect(imagesLostBySave(deck, images, { overwrite: true, inGrantedFolder: false })).toEqual([]);
-    expect(imagesLostBySave(deck, images, { overwrite: true, inGrantedFolder: true })).toEqual([]);
+    expect(imagesLostBySave(deck, images, { overwritesOpenedFile: true, directlyInGrantedFolder: false })).toEqual([]);
+    expect(imagesLostBySave(deck, images, { overwritesOpenedFile: true, directlyInGrantedFolder: true })).toEqual([]);
   });
 
   it('名前を付けて保存でも、許可済みのフォルダの直下なら何も返さない', () => {
-    expect(imagesLostBySave(deck, images, { overwrite: false, inGrantedFolder: true })).toEqual([]);
+    expect(imagesLostBySave(deck, images, { overwritesOpenedFile: false, directlyInGrantedFolder: true })).toEqual([]);
   });
 
   it('中身の無い画像が無ければ、別のフォルダでも空', () => {
     const all = { [A]: new Blob(['a']), [B]: new Blob(['b']), [C]: new Blob(['c']) };
-    expect(imagesLostBySave(deck, all, { overwrite: false, inGrantedFolder: false })).toEqual([]);
+    expect(imagesLostBySave(deck, all, { overwritesOpenedFile: false, directlyInGrantedFolder: false })).toEqual([]);
     const noImages = parseDeck('<body><section><div data-el>a</div></section></body>');
-    expect(imagesLostBySave(noImages, {}, { overwrite: false, inGrantedFolder: false })).toEqual([]);
+    expect(imagesLostBySave(noImages, {}, { overwritesOpenedFile: false, directlyInGrantedFolder: false })).toEqual([]);
   });
 
   it('知らせる文面に枚数が入る（フォルダを読めるブラウザ）', () => {

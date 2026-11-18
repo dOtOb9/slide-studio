@@ -1,6 +1,3 @@
-// examples/ にある外部プラグインが、本物の API で動くことを確かめる。
-// 外部プラグインと同じく、モジュールを import() して pluginFromModule で取り出し、'external' として登録する。
-
 import { describe, expect, it, vi } from 'vitest';
 import { initModel, type Model } from '../app/model';
 import { update } from '../app/update';
@@ -10,9 +7,8 @@ import { api, type PluginContext } from '../plugin-api';
 import sample from '../samples/sample-deck.html?raw';
 import { pluginFromModule, registerPlugin } from './host';
 
-// パスを文字列の変数にして import する（型の無い .js を TypeScript に調べさせないため）
-const path: string = '../../examples/sticky-note/plugin.js';
-const plugin = registerPlugin(pluginFromModule(await import(/* @vite-ignore */ path), api), 'external');
+const untypedJsPathAsStringSoTsSkipsIt: string = '../../examples/sticky-note/plugin.js';
+const plugin = registerPlugin(pluginFromModule(await import(/* @vite-ignore */ untypedJsPathAsStringSoTsSkipsIt), api), 'external');
 
 const setup = () => update(initModel(parseDeck(sample), 't.html'), { type: 'SlideSelected', index: 1 });
 

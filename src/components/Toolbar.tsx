@@ -1,9 +1,3 @@
-// 上部のツールバー（view）。ファイル・履歴・スライドの操作。
-//
-// UI の方針（AGENTS.md）: ボタンはアイコンで示し、説明の文字はツールチップ（title）に書く。
-// アイコンは lucide-react（SVG の部品。使ったアイコンだけがビルドに入る）。
-// まとまり（.group）は区切り線でなく、背景の色差で分ける（index.css）。
-
 import { Copy, FolderKey, FolderOpen, Plus, Redo2, Save, SaveAll, Trash2, Undo2 } from 'lucide-react';
 import { isDirty, needsFolderAccess } from '../app/model';
 import { useDispatch, useModel } from '../app/store';
@@ -16,7 +10,7 @@ import { PluginSlot } from './PluginSlot';
 export function Toolbar() {
   const fileName = useModel((m) => m.fileName);
   const dirty = useModel(isDirty);
-  const askFolder = useModel(needsFolderAccess);
+  const showFolderAccessButton = useModel(needsFolderAccess);
   const canUndo = useModel((m) => m.history.past.length > 0);
   const canRedo = useModel((m) => m.history.future.length > 0);
   const layouts = useModel((m) => m.deck.layouts);
@@ -37,8 +31,7 @@ export function Toolbar() {
         <IconButton label="名前を付けて保存 (Ctrl+Shift+S)" onClick={() => void saveDeck(true)}>
           <SaveAll />
         </IconButton>
-        {/* images/ の画像を使っているのに、まだ読めていないときだけ出る（出す条件は app/model.ts の needsFolderAccess） */}
-        {askFolder && (
+        {showFolderAccessButton && (
           <IconButton
             label="フォルダへのアクセスを許可（images/ の画像を表示する）"
             onClick={() => void grantFolderAccess()}
@@ -58,8 +51,6 @@ export function Toolbar() {
       </div>
 
       <div className="group">
-        {/* 見た目は ＋ のアイコン。上に透明な <select> を重ねてあり、押すとレイアウトの一覧が出る。
-            選んだレイアウトで、表示中のスライドの後ろに追加する。選んだら空の表示に戻す */}
         <span className="icon-button select-button" title="新しいスライド (Ctrl+M)">
           <Plus />
           <select
@@ -93,7 +84,6 @@ export function Toolbar() {
         </IconButton>
       </div>
 
-      {/* 有効なプラグインの部品（登録した順に並ぶ）。部品は自分で Model の変化を購読して描き直す */}
       {plugins.map(
         ({ plugin, enabled }) =>
           enabled && plugin.toolbar && <PluginSlot key={plugin.name} name={plugin.name} view={plugin.toolbar} />,

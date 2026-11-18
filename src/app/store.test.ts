@@ -1,16 +1,11 @@
-// プラグインの部品に渡す窓口（pluginContext）のテスト。
-// ctx.subscribe に部品が渡す関数も「外から来る値」（Step 7a audit-1 #1。監査役のレッドテストから移した）。
-
 import { describe, expect, it, vi } from 'vitest';
 import type { PluginContext } from '../plugin-api';
 import { pluginContext, useStore } from './store';
 
-// Step 7a audit-1 #1 の再発防止: 入口の一覧を人が数えたので ctx.subscribe を見落とした。
-// ctx の関数ごとに「部品から来る不正な値を入れても dispatch・画面が止まらない」ことを試す。
-// Record<keyof PluginContext, …> なので、PluginContext に関数を足すとここに書かないと型エラーになる
-// （部品から値を受け取らない関数は null と書き、理由をコメントに残す）。
-const badInputs: Record<keyof PluginContext, (() => void) | null> = {
-  getModel: null, // 部品から値を受け取らない（アプリから部品へ渡すだけ）
+type NoInputFromComponent = { takesNoValueFromComponentBecause: string };
+
+const badInputsForEachContextFunction: Record<keyof PluginContext, (() => void) | NoInputFromComponent> = {
+  getModel: { takesNoValueFromComponentBecause: 'アプリから部品へ Model を渡すだけ' },
   dispatch: () => {
     for (const bad of [null, undefined, 'Undo', 5, {}, { type: 5 }]) pluginContext.dispatch(bad as never);
   },
@@ -29,11 +24,15 @@ const badInputs: Record<keyof PluginContext, (() => void) | null> = {
   },
 };
 
-describe('pluginContext の各関数は、部品から来る不正な値で止まらない', () => {
-  it.each(Object.entries(badInputs).filter(([, run]) => run))('%s', (_name, run) => {
+const runnableBadInputs = Object.entries(badInputsForEachContextFunction).filter(
+  (entry): entry is [string, () => void] => typeof entry[1] === 'function',
+);
+
+describe('pluginContext の各関数は、部品から来る不正な値で止まらない（PluginContext に関数を足すと、ここに書くまで型エラー。Step 7a audit-1 #1）', () => {
+  it.each(runnableBadInputs)('%s', (_name, run) => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    expect(run!).not.toThrow();
-    expect(useStore.getState().model.deck).toBeDefined(); // Model が壊れていない
+    expect(run).not.toThrow();
+    expect(useStore.getState().model.deck, 'Model が壊れていない').toBeDefined();
   });
 });
 

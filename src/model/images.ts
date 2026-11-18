@@ -1,31 +1,14 @@
-// deck.html の隣の images/ に置く画像ファイルの扱い（純粋な関数だけ。React にも DOM にも依存しない）。
-//
-// 画像は deck.html に埋め込まず、隣のフォルダに普通のファイルとして置き、
-//   <img data-el src="images/<中身の SHA-256 の16進>.<拡張子>">
-// で参照する（AI が deck.html を読み書きしやすいように）。名前は中身から決まるので、
-// 同じ名前なら同じ中身とみなせる（書き込み済みなら書き直さない・増えるだけで消さない）。
-//
-// 管理の対象は「section 直下の img 要素の src が images/ で始まるもの」だけ。
-// 要素の中身の HTML に書かれた <img> や、テーマ CSS の url() は対象外（そのまま残す）。
-
 import type { Deck } from './types';
 
-/** 画像を置くフォルダ（deck.html からの相対パス） */
 export const IMAGE_DIR = 'images';
 
-/**
- * 管理対象の画像パスの形。images/ の直下の1ファイルだけで、名前は英数字・_・- に限る。
- * `..` や入れ子のフォルダ（images/a/b.png）、空の名前は通さない（フォルダの外を読み書きしないため）
- */
-const IMAGE_PATH = /^images\/[A-Za-z0-9_-]+\.(png|jpe?g|gif|webp|svg|avif)$/;
+const MANAGED_IMAGE_PATH_DIRECTLY_UNDER_IMAGE_DIR = /^images\/[A-Za-z0-9_-]+\.(png|jpe?g|gif|webp|svg|avif)$/;
 
-/** 管理対象の画像パスか。外から来る値（ファイルの src・プラグインの Msg）にも使うので unknown を受ける */
 export function isImagePath(value: unknown): value is string {
-  return typeof value === 'string' && IMAGE_PATH.test(value);
+  return typeof value === 'string' && MANAGED_IMAGE_PATH_DIRECTLY_UNDER_IMAGE_DIR.test(value);
 }
 
-/** MIME 型 → 拡張子。ここに無い型の画像は images/ に置かない */
-const EXTENSIONS: Record<string, string> = {
+const EXTENSIONS_STORABLE_IN_IMAGE_DIR: Record<string, string> = {
   'image/png': 'png',
   'image/jpeg': 'jpg',
   'image/gif': 'gif',
@@ -34,23 +17,17 @@ const EXTENSIONS: Record<string, string> = {
   'image/avif': 'avif',
 };
 
-/** MIME 型に対応する拡張子（対応していない型なら null） */
 export function extensionOf(mimeType: string): string | null {
-  return EXTENSIONS[mimeType.toLowerCase()] ?? null;
+  return EXTENSIONS_STORABLE_IN_IMAGE_DIR[mimeType.toLowerCase()] ?? null;
 }
 
-/** 画像パスの拡張子から MIME 型を決める（管理対象のパスでなければ null） */
 export function mimeTypeOf(path: string): string | null {
   if (!isImagePath(path)) return null;
   const ext = path.slice(path.lastIndexOf('.') + 1).toLowerCase();
   if (ext === 'jpeg') return 'image/jpeg';
-  return Object.keys(EXTENSIONS).find((type) => EXTENSIONS[type] === ext) ?? null;
+  return Object.keys(EXTENSIONS_STORABLE_IN_IMAGE_DIR).find((type) => EXTENSIONS_STORABLE_IN_IMAGE_DIR[type] === ext) ?? null;
 }
 
-/**
- * 中身のハッシュ（16進）と MIME 型から、画像のパス（images/<ハッシュ>.<拡張子>）を作る。
- * 対応していない MIME 型、ハッシュに使えない文字が入っているときは null
- */
 export function imagePath(hash: string, mimeType: string): string | null {
   const ext = extensionOf(mimeType);
   if (!ext) return null;
@@ -58,7 +35,6 @@ export function imagePath(hash: string, mimeType: string): string | null {
   return isImagePath(path) ? path : null;
 }
 
-/** デッキで使っている管理対象の画像パスの一覧（全スライドの img 要素の src から。重複なし、出てきた順） */
 export function usedImagePaths(deck: Deck): string[] {
   const paths = new Set<string>();
   for (const slide of deck.slides) {
@@ -69,15 +45,10 @@ export function usedImagePaths(deck: Deck): string[] {
   return [...paths];
 }
 
-/** 使っている画像のうち、中身（Blob）を持っていないもののパス */
 export function missingImagePaths(deck: Deck, images: Record<string, Blob>): string[] {
   return usedImagePaths(deck).filter((path) => !Object.prototype.hasOwnProperty.call(images, path));
 }
 
-/**
- * 保存するときに中身を書き出す画像（images/ に書く、またはフォルダに書けないときに埋め込む）。
- * 使っている画像のうち、中身を持っているものだけ。使っていない画像・中身の無い画像（参照のまま残す）は含まない
- */
 export function imagesToWrite(deck: Deck, images: Record<string, Blob>): Record<string, Blob> {
   const out: Record<string, Blob> = {};
   for (const path of usedImagePaths(deck)) {
@@ -86,64 +57,34 @@ export function imagesToWrite(deck: Deck, images: Record<string, Blob>): Record<
   return out;
 }
 
-/**
- * 保存先について io/file.ts が調べた事実（判断は下の imagesLostBySave がする）。
- *   overwrite       … 開いたファイルへの上書き保存か（名前を付けて保存・新しいファイルの保存・ダウンロードなら false）
- *   inGrantedFolder … 保存先が、許可済みのフォルダ（開いたファイルのあるフォルダ）の直下か
- */
 export interface SaveDestination {
-  overwrite: boolean;
-  inGrantedFolder: boolean;
+  overwritesOpenedFile: boolean;
+  directlyInGrantedFolder: boolean;
 }
 
-/**
- * この保存で表示されなくなる画像（保存する前に知らせるもの。PR #6 pr-audit 推奨 #1）。
- * 中身を持っていない画像は、HTML に images/… の参照のまま書かれる。
- * 開いたファイルと同じフォルダなら、そこの images/ にあるはずなので問題ない（空を返す）。
- * 別のフォルダ（上書きでなく、許可済みのフォルダの直下でもない）なら、新しい場所には images/ が無いので壊れる。
- * ダウンロードで保存するときも、保存先は別の場所とみなす（io/file.ts が overwrite も inGrantedFolder も false で渡す）
- */
 export function imagesLostBySave(deck: Deck, images: Record<string, Blob>, dest: SaveDestination): string[] {
-  if (dest.overwrite || dest.inGrantedFolder) return [];
+  const missingImagesShouldAlreadyBeInThatImageDir = dest.overwritesOpenedFile || dest.directlyInGrantedFolder;
+  if (missingImagesShouldAlreadyBeInThatImageDir) return [];
   return missingImagePaths(deck, images);
 }
 
-/**
- * imagesLostBySave が1つ以上あるときに、保存を続けるか聞く文面。
- * canReadFolder（Model の canReadFolder）が false のブラウザには「フォルダへのアクセスを許可」のボタンが出ないので、
- * そのボタンを案内しない（save-as audit-1 #1）
- */
-export function lostImagesQuestion(count: number, canReadFolder: boolean): string {
+export function lostImagesQuestion(count: number, browserOffersFolderAccessButton: boolean): string {
   const lead = `${count} 枚の画像を読み込めていないため、新しい場所では表示されません`;
-  if (canReadFolder) return `${lead}。先に『フォルダへのアクセスを許可』で読み込んでください。保存を続けますか？`;
+  if (browserOffersFolderAccessButton) return `${lead}。先に『フォルダへのアクセスを許可』で読み込んでください。保存を続けますか？`;
   return `${lead}（元の images/ フォルダの隣に置けば表示されます）。保存を続けますか？`;
 }
 
-// --- 外から来る値 -------------------------------------------------------------
+export const MAX_IMAGE_BYTES = 50 * 1024 * 1024;
 
-/**
- * フォルダから読む画像1つの大きさの上限。
- * スライドの画像としては十分に大きく、うっかり動画などの巨大なファイルを読み込んでメモリを使い切らない程度にしている
- */
-export const MAX_IMAGE_BYTES = 50 * 1024 * 1024; // 50MB
-
-/**
- * images/ から読んだファイルを確かめる。読んでよければ null、だめなら理由を返す。
- * 確かめること: File であるか・空でないか・画像の MIME 型か（型が空なら拡張子で判断するので通す）・大きすぎないか
- */
 export function checkImageFile(value: unknown): string | null {
   if (typeof File === 'undefined' || !(value instanceof File)) return 'ファイルではありません';
   if (value.size === 0) return '空のファイルです';
-  if (value.type !== '' && !value.type.startsWith('image/')) return `画像ではありません（${value.type}）`;
+  const browserCouldNotTellTypeFromExtension = value.type === '';
+  if (!browserCouldNotTellTypeFromExtension && !value.type.startsWith('image/')) return `画像ではありません（${value.type}）`;
   if (value.size > MAX_IMAGE_BYTES) return `大きすぎます（${MAX_IMAGE_BYTES / 1024 / 1024}MB まで）`;
   return null;
 }
 
-/**
- * ImagesAdded の images 欄（プラグインからも来る）を確かめ、受け入れられる項目だけを返す。
- * 確かめること: オブジェクトであること・キーが管理対象の画像パスであること・値が Blob であること。
- * 中身が本当にその形式の画像か、名前がハッシュと一致するかまでは確かめない（表示が壊れるだけで、アプリは落ちないため）
- */
 export function acceptImages(value: unknown): { images: Record<string, Blob>; rejected: string[] } {
   const images: Record<string, Blob> = {};
   const rejected: string[] = [];

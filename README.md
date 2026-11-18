@@ -164,6 +164,41 @@ export default function myPlugin(api) {   // api: アプリの API（plugin-api 
 | `checkImageFile(file)` / `extensionOf(mimeType)` | 受け取った画像のファイルを確かめる: だめなら理由の文字列（File でない・空・画像でない・50MB 超）、images/ に置ける型なら拡張子（置けなければ `null`）。1.3 から |
 | `version` | アプリの API の版 |
 
+**Plugin の欄**（`name` と `apiVersion` のほかは任意。キー操作だけ・部品だけのプラグインもありうる）
+
+| 欄 | 約束 |
+|---|---|
+| `name` | 英小文字で始まる英小文字・数字・ハイフン。自分の Msg の type の `/` より前と一致させる（ずれると Msg が届かず、コンソールに警告が出る） |
+| `apiVersion` | 作ったときの API の版（例: `'1.0'`）。下の「版の互換性」 |
+| `title` / `description` | プラグインの一覧に出す名前と説明（文字列） |
+| `update(model, msg)` | 自分の Msg を処理する純粋関数。Model を返す（`...model` を展開して作る。欄が欠けた Model や例外は断られ、Model はそのまま） |
+| `onKey(model, key)` | 土台が扱わなかったキーを自分の Msg に変える。扱わないなら `null`。返してよいのは自分の Msg だけ（土台の Msg を返すと断られる）。`key.mod` は Ctrl または Mac の Cmd |
+| `toolbar.mount(container, ctx)` | container の中に DOM を作り、片付ける関数を返す。UI フレームワークに依存しない形なので、React を使わなくても作れ、アプリと React の版が違っても壊れない |
+
+| ctx の中身 | 用途 |
+|---|---|
+| `getModel()` | 今の Model を読む |
+| `dispatch(msg)` | Msg を送る（状態を変える唯一の入口）。Msg の形（type が文字列のオブジェクト）でないものは捨てられる |
+| `subscribe(fn)` | Model が変わるたびに `fn` を呼ぶ。戻り値を呼ぶと外れる。`fn` が例外を出しても、アプリと他の部品は止まらない |
+
+**Model の主な欄**（読むときの約束。書き換えは `edit` / `setPluginState` などを通す）
+
+| 欄 | 意味 |
+|---|---|
+| `deck` / `savedDeck` | 今の Deck / 最後に保存した（開いた）時点の Deck。`deck !== savedDeck` なら未保存（参照で比べるので、元に戻すで保存時点まで戻れば未保存でなくなる） |
+| `current` / `selectedId` / `editingId` | 表示中のスライド番号（0 始まり）/ 選択中の要素 / テキスト編集中の要素 |
+| `boxes` | 表示中のスライドの各要素の、描画後に測った位置と大きさ（スライド px）。ファイルに幅・高さが無い要素もあるので、位置の起点にはこちらを使う。保存しない |
+| `gesture` | ドラッグ（移動・リサイズ）の途中経過。`handle` が `null` なら移動。`before` は始める前の Deck で、終わったときに履歴へ1件だけ積む |
+| `history` | `past` は古い順（最後が直前）、`future` は元に戻した分（先頭が直後） |
+| `nextId` | 新しいスライド・要素の id の連番（`n1`, `n2`, …）。読み込んだファイルの id（`e1`, `s1`, …）とは重ならない。`withNewIds` が進める |
+| `plugins` | 各プラグイン自身の状態（`getPluginState` / `setPluginState`）。保存せず、元に戻すの対象外。別のファイルを開いても残る |
+| `images` | images/ の画像の中身（パス → Blob）。履歴にも未保存の判定にも入らず、増えるだけで消えない。別のファイルを開くと空になる |
+| `canReadFolder` | 開いたファイルの隣の images/ を読みに行けるか（Chrome・Edge でファイルを開いたとき true） |
+
+**Deck の型**: 位置と大きさ（`Rect` の `x` `y` `w` `h`）はスライド座標の px（1920×1080 が基準）。
+`SlideElement` の `id` はアプリの中だけで使い、ファイルには保存しない。`ph` があればプレースホルダーで、`rect` はレイアウトの位置への上書き分だけ。
+`style` は位置以外のインラインスタイル、`attrs` は `src` などその他の属性、`html` は中身の HTML。`Slide` の `notes` はプレーンテキスト。
+
 **画像を置く**（1.2 から）: 画像の中身は Deck ではなく `model.images`（パス → Blob。保存のときに images/ に書かれる）に入る。
 部品で Blob を受け取ったら `imagePathOf` でパスを作り、`ctx.dispatch({ type: 'ImagesAdded', images: { [パス]: blob } })` で中身を渡してから、
 自分の Msg の update で `insertElement` を使い `{ tag: 'img', attrs: { src: パス }, … }` を置く。
@@ -191,6 +226,14 @@ export default function myPlugin(api) {   // api: アプリの API（plugin-api 
 クラス名と変数は API の一部として扱う（消す・意味を変えるときは API のメジャーを上げる）。
 
 **版の互換性**: API の版は「メジャー.マイナー」。プラグインの `apiVersion` のメジャーがアプリと同じで、マイナーがアプリ以下なら読み込める。
+関数や欄を足しただけならマイナー、消した・意味を変えたならメジャーを上げる。
+
+| 版 | 足したもの |
+|---|---|
+| 1.1 | 部品の見た目の約束（共通クラス `.button` / `.icon-button` と CSS 変数） |
+| 1.2 | images/ の画像（`Model.images`、Msg の `ImagesAdded`、`imagePathOf` / `sha256Hex` / `imagePath` / `isImagePath`） |
+| 1.3 | 受け取った画像のファイルを確かめる `checkImageFile` / `extensionOf`（画像の挿入のプラグインが、土台と同じ上限・同じ対応形式で断れるように） |
+
 型の一覧は [src/plugin-api/index.ts](src/plugin-api/index.ts)。
 
 読み込み: ツールバーのパズルのアイコン（プラグイン）→ ファイルのアイコン（ファイルから読み込む）か、URL を入れて → のアイコン

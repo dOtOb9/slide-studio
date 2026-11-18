@@ -1,6 +1,3 @@
-// 保存する deck.html の中身（images/ に書く／埋め込む）のテスト。Step 8 audit-1 #2
-// jsdom にも FileReader があるので、data URI への変換まで実際に通す。
-
 import { describe, expect, it } from 'vitest';
 import { parseDeck } from '../model/parse';
 import { deckHtml, embedSrc } from './images';
@@ -18,8 +15,7 @@ const srcs = (html: string) => parseDeck(html).slides[0].elements.map((e) => e.a
 
 const images = {
   [A]: new Blob(['png'], { type: 'image/png' }),
-  [C]: new Blob(['unused'], { type: 'image/png' }), // 使っていない
-  // B は中身が無い
+  [C]: new Blob(['unused'], { type: 'image/png' }),
 };
 
 describe('deckHtml', () => {
@@ -30,7 +26,7 @@ describe('deckHtml', () => {
   it('フォルダに書けないときは、中身のある画像を data URI で埋め込み、中身の無い画像は参照のまま', async () => {
     const html = await deckHtml(deck, images, false);
     expect(srcs(html)).toEqual([`data:image/png;base64,${btoa('png')}`, B, 'data:image/gif;base64,R0lGOD']);
-    expect(html).not.toContain(btoa('unused')); // 使っていない画像は埋め込まない
+    expect(html).not.toContain(btoa('unused'));
   });
 });
 
@@ -38,6 +34,6 @@ describe('embedSrc', () => {
   it('型が空の Blob は、パスの拡張子から型を決める', async () => {
     const resolve = await embedSrc({ [B]: new Blob(['<svg/>']) });
     expect(resolve(B)).toBe(`data:image/svg+xml;base64,${btoa('<svg/>')}`);
-    expect(resolve(A)).toBe(A); // 渡していない画像はそのまま
+    expect(resolve(A)).toBe(A);
   });
 });

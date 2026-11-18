@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import sample from '../samples/sample-deck.html?raw';
 import {
+  ADD_SLIDE_AT_TOP,
   addSlide,
   deleteElement,
   deleteSlide,
@@ -16,7 +17,7 @@ import { resolveRect } from './render';
 import { serializeDeck } from './serialize';
 
 const deck = parseDeck(sample);
-const slide = deck.slides[1]; // title-body
+const slide = deck.slides[1];
 const title = slide.elements[0];
 
 describe('updateElement', () => {
@@ -67,7 +68,6 @@ describe('deleteElement', () => {
 });
 
 describe('スライドの操作', () => {
-  /** テスト用の id 生成（t1, t2, ... と予測できる値を返す） */
   const ids = () => {
     let n = 0;
     return () => `t${++n}`;
@@ -83,13 +83,12 @@ describe('スライドの操作', () => {
       ['t2', 'title', ''],
       ['t3', 'body', ''],
     ]);
-    // 空のプレースホルダーも保存でき、読み直しても残る
     expect(serializeDeck(next)).toContain('<div data-ph="title"></div>');
     expect(parseDeck(serializeDeck(next)).slides[1].elements).toHaveLength(2);
   });
 
   it('addSlide: index = -1 なら先頭に入れる', () => {
-    expect(addSlide(deck, -1, 'blank', ids()).slides[0].layout).toBe('blank');
+    expect(addSlide(deck, ADD_SLIDE_AT_TOP, 'blank', ids()).slides[0].layout).toBe('blank');
   });
 
   it('duplicateSlide: 中身は同じで、id はすべて新しい', () => {
@@ -98,7 +97,6 @@ describe('スライドの操作', () => {
     expect(b.elements.map((e) => e.html)).toEqual(a.elements.map((e) => e.html));
     expect(b.id).not.toBe(a.id);
     expect(b.elements.map((e) => e.id)).toEqual(['t2', 't3', 't4', 't5']);
-    // 複製の rect を変えても元は変わらない（入れ子のオブジェクトも別物）
     expect(b.elements[1].rect).not.toBe(a.elements[1].rect);
   });
 

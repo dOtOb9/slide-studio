@@ -1,8 +1,3 @@
-// ツールバーの「挿入」ボタン群（view）。plugin.ts で reactView に包んでツールバーに置く。
-// store は import せず、Model と dispatch を props で受け取る（plugin-api/react.tsx の PluginViewProps）。
-//
-// 見た目はアプリと同じ共通クラス .icon-button（README「プラグイン」）。説明の文字はツールチップに書く。
-
 import { Circle, MoveRight, Square, Type, type LucideIcon } from 'lucide-react';
 import type { PluginViewProps } from '../../plugin-api/react';
 import type { ShapeKind } from './update';

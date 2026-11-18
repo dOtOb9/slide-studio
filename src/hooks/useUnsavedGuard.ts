@@ -1,7 +1,3 @@
-// 未保存の変更の扱い:
-//   - タブのタイトルに「●」を付ける
-//   - 未保存のままタブを閉じようとしたら、ブラウザの確認ダイアログを出す
-
 import { useEffect } from 'react';
 import { isDirty } from '../app/model';
 import { getModel, useModel } from '../app/store';
