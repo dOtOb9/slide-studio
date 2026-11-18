@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { PluginContext } from '../plugin-api';
+import { slideAreaMarker } from './slideArea';
 import { pluginContext, useStore } from './store';
 
 type NoInputFromComponent = { takesNoValueFromComponentBecause: string };
 
 const badInputsForEachContextFunction: Record<keyof PluginContext, (() => void) | NoInputFromComponent> = {
   getModel: { takesNoValueFromComponentBecause: 'アプリから部品へ Model を渡すだけ' },
+  slideArea: { takesNoValueFromComponentBecause: 'アプリから部品へスライドの表示領域の要素を渡すだけ' },
   dispatch: () => {
     for (const bad of [null, undefined, 'Undo', 5, {}, { type: 5 }]) pluginContext.dispatch(bad as never);
   },
@@ -61,5 +63,23 @@ describe('pluginContext.subscribe（外部プラグインの部品が渡す list
     } finally {
       unsub();
     }
+  });
+});
+
+describe('pluginContext.slideArea（スライドの表示領域。API 1.4）', () => {
+  it('土台が印を付けた要素を返す。クラス名には頼らないので、プラグインは土台の内部のクラス名を知らなくてよい', () => {
+    const area = document.createElement('main');
+    Object.entries(slideAreaMarker).forEach(([name, value]) => area.setAttribute(name, value));
+    document.body.append(area);
+    try {
+      expect(area.className).toBe('');
+      expect(pluginContext.slideArea()).toBe(area);
+    } finally {
+      area.remove();
+    }
+  });
+
+  it('印を付けた要素が無ければ null', () => {
+    expect(pluginContext.slideArea()).toBeNull();
   });
 });

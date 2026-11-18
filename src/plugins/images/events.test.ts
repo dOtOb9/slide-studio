@@ -24,6 +24,7 @@ function minimalContextRunningBaseUpdate(initial?: Model) {
       model = update(model, msg);
     },
     subscribe: () => () => {},
+    slideArea: () => slideArea,
   };
   return { ctx, setModel: (m: Model) => (model = m) };
 }
@@ -46,17 +47,17 @@ function drag(type: 'dragover' | 'drop', target: EventTarget, data: DataTransfer
   return e;
 }
 
-let stage: HTMLElement;
+let slideArea: HTMLElement | null;
 let canvas: HTMLElement;
 let outside: HTMLElement;
 
 beforeEach(() => {
-  stage = document.createElement('main');
-  stage.className = 'stage';
+  const areaWithoutAnyBaseClassName = document.createElement('main');
+  slideArea = areaWithoutAnyBaseClassName;
   canvas = document.createElement('div');
-  stage.append(canvas);
+  areaWithoutAnyBaseClassName.append(canvas);
   outside = document.createElement('aside');
-  document.body.append(stage, outside);
+  document.body.append(areaWithoutAnyBaseClassName, outside);
 });
 
 afterEach(() => {
@@ -122,6 +123,37 @@ describe('貼り付け', () => {
     stop();
   });
 
+  it('チェックボックス・ボタンなど文字の入力欄でない所にフォーカスがあっても、画像を貼り付ける', () => {
+    const insert = fakeInsert();
+    const stop = listenPasteAndDrop(minimalContextRunningBaseUpdate().ctx, insert);
+    const nonTextInputs = ['checkbox', 'radio', 'button', 'range', 'color', 'file'].map((type) => {
+      const input = document.createElement('input');
+      input.type = type;
+      return input;
+    });
+    const button = document.createElement('button');
+    const select = document.createElement('select');
+    outside.append(...nonTextInputs, button, select);
+    for (const target of [...nonTextInputs, button, select]) {
+      expect(paste(target, [png('a.png')]).defaultPrevented, target.outerHTML).toBe(true);
+    }
+    expect(insert).toHaveBeenCalledTimes(nonTextInputs.length + 2);
+    stop();
+  });
+
+  it('文字を打てる input（text・search・url・number など）への貼り付けはブラウザに任せる', () => {
+    const insert = fakeInsert();
+    const stop = listenPasteAndDrop(minimalContextRunningBaseUpdate().ctx, insert);
+    for (const type of ['text', 'search', 'url', 'email', 'tel', 'password', 'number', 'date']) {
+      const input = document.createElement('input');
+      input.type = type;
+      outside.append(input);
+      expect(paste(input, [png('a.png')]).defaultPrevented, type).toBe(false);
+    }
+    expect(insert).not.toHaveBeenCalled();
+    stop();
+  });
+
   it('スライドが 0 枚なら入れない', () => {
     const insert = fakeInsert();
     const stop = listenPasteAndDrop(minimalContextRunningBaseUpdate(initModel(parseDeck('<body></body>'), 'e.html')).ctx, insert);
@@ -180,6 +212,26 @@ describe('ドロップ', () => {
     expect(drag('drop', canvas, text).defaultPrevented).toBe(false);
     expect(insert).not.toHaveBeenCalled();
     stop();
+  });
+
+  it('ドロップ先は ctx.slideArea() が返す要素で決まる。null（スライドの表示領域が無い）ならどこに落としても入れない', () => {
+    const insert = fakeInsert();
+    slideArea = null;
+    const stop = listenPasteAndDrop(minimalContextRunningBaseUpdate().ctx, insert);
+    const data = dataTransferStubSinceJsdomHasNone([png('a.png')]);
+    expect(drag('dragover', canvas, data).defaultPrevented).toBe(true);
+    expect(data.dropEffect).toBe('none');
+    drag('drop', canvas, data);
+    expect(insert).not.toHaveBeenCalled();
+    stop();
+  });
+
+  it('画像のプラグインのコードは土台の内部のクラス名（.stage など）を使わない（ドロップ先は plugin-api の ctx.slideArea から得る）', () => {
+    const sources = import.meta.glob(['./*.ts', './*.tsx', '!./*.test.ts'], { query: '?raw', import: 'default', eager: true });
+    expect(Object.keys(sources).length).toBeGreaterThan(0);
+    for (const [file, text] of Object.entries(sources)) {
+      expect(String(text), file).not.toMatch(/['"`.]stage\b/);
+    }
   });
 
   it('テキスト編集中は入れない', () => {

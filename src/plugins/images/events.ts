@@ -19,25 +19,31 @@ export function isFileDrag(data: DataTransfer | null | undefined): boolean {
   return !!data && Array.from(data.types ?? []).includes('Files');
 }
 
-export function isTextTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target.isContentEditable;
+const INPUT_TYPES_WHERE_NO_TEXT_CAN_BE_TYPED = new Set(['checkbox', 'radio', 'button', 'submit', 'reset', 'image', 'file', 'range', 'color', 'hidden']);
+
+function isTextEntryInput(target: HTMLInputElement): boolean {
+  return !INPUT_TYPES_WHERE_NO_TEXT_CAN_BE_TYPED.has(target.type);
 }
 
-const BASE_STAGE_CLASS_NOT_PROMISED_BY_PLUGIN_API = '.stage';
+export function isTextTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target instanceof HTMLInputElement) return isTextEntryInput(target);
+  return target instanceof HTMLTextAreaElement || target.isContentEditable;
+}
 
 function keepBrowserFromOpeningFileDroppedAnywhere(e: DragEvent) {
   e.preventDefault();
-}
-
-function dropAreaOf(target: EventTarget | null): HTMLElement | null {
-  return target instanceof Element ? target.closest<HTMLElement>(BASE_STAGE_CLASS_NOT_PROMISED_BY_PLUGIN_API) : null;
 }
 
 export function listenPasteAndDrop(
   ctx: PluginContext,
   insert: (files: File[], dispatch: PluginContext['dispatch']) => Promise<void> = insertImageFiles,
 ): () => void {
+  const dropAreaOf = (target: EventTarget | null): HTMLElement | null => {
+    const area = ctx.slideArea();
+    return area && target instanceof Node && area.contains(target) ? area : null;
+  };
+
   const onPaste = (e: ClipboardEvent) => {
     const leaveTextPasteToBrowser = ctx.getModel().editingId !== null || isTextTarget(e.target);
     if (leaveTextPasteToBrowser) return;

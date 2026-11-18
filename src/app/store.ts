@@ -5,6 +5,7 @@ import { checkMsgFromPlugin, listenerFromPlugin } from '../plugins/host';
 import sample from '../samples/sample-deck.html?raw';
 import { initModel, type Model } from './model';
 import type { Msg } from './msg';
+import { findSlideArea } from './slideArea';
 import { update } from './update';
 
 interface Store {
@@ -37,4 +38,5 @@ export const pluginContext: PluginContext = {
     if (!safe) return () => {};
     return useStore.subscribe(() => safe());
   },
+  slideArea: findSlideArea,
 };
