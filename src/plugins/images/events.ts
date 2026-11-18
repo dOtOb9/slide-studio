@@ -19,9 +19,16 @@ export function isFileDrag(data: DataTransfer | null | undefined): boolean {
   return !!data && Array.from(data.types ?? []).includes('Files');
 }
 
+const INPUT_TYPES_WHERE_NO_TEXT_CAN_BE_TYPED = new Set(['checkbox', 'radio', 'button', 'submit', 'reset', 'image', 'file', 'range', 'color', 'hidden']);
+
+function isTextEntryInput(target: HTMLInputElement): boolean {
+  return !INPUT_TYPES_WHERE_NO_TEXT_CAN_BE_TYPED.has(target.type);
+}
+
 export function isTextTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
-  return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target.isContentEditable;
+  if (target instanceof HTMLInputElement) return isTextEntryInput(target);
+  return target instanceof HTMLTextAreaElement || target.isContentEditable;
 }
 
 function keepBrowserFromOpeningFileDroppedAnywhere(e: DragEvent) {

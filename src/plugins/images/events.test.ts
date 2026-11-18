@@ -123,6 +123,37 @@ describe('貼り付け', () => {
     stop();
   });
 
+  it('チェックボックス・ボタンなど文字の入力欄でない所にフォーカスがあっても、画像を貼り付ける', () => {
+    const insert = fakeInsert();
+    const stop = listenPasteAndDrop(minimalContextRunningBaseUpdate().ctx, insert);
+    const nonTextInputs = ['checkbox', 'radio', 'button', 'range', 'color', 'file'].map((type) => {
+      const input = document.createElement('input');
+      input.type = type;
+      return input;
+    });
+    const button = document.createElement('button');
+    const select = document.createElement('select');
+    outside.append(...nonTextInputs, button, select);
+    for (const target of [...nonTextInputs, button, select]) {
+      expect(paste(target, [png('a.png')]).defaultPrevented, target.outerHTML).toBe(true);
+    }
+    expect(insert).toHaveBeenCalledTimes(nonTextInputs.length + 2);
+    stop();
+  });
+
+  it('文字を打てる input（text・search・url・number など）への貼り付けはブラウザに任せる', () => {
+    const insert = fakeInsert();
+    const stop = listenPasteAndDrop(minimalContextRunningBaseUpdate().ctx, insert);
+    for (const type of ['text', 'search', 'url', 'email', 'tel', 'password', 'number', 'date']) {
+      const input = document.createElement('input');
+      input.type = type;
+      outside.append(input);
+      expect(paste(input, [png('a.png')]).defaultPrevented, type).toBe(false);
+    }
+    expect(insert).not.toHaveBeenCalled();
+    stop();
+  });
+
   it('スライドが 0 枚なら入れない', () => {
     const insert = fakeInsert();
     const stop = listenPasteAndDrop(minimalContextRunningBaseUpdate(initModel(parseDeck('<body></body>'), 'e.html')).ctx, insert);
