@@ -119,7 +119,7 @@ Step 6 では「外部プラグインの title が文字列でない」「update
 | 入口 | 来る値 | 確かめる場所 |
 |---|---|---|
 | 外部プラグインのモジュール | default export・Plugin の各欄 | `plugins/host.ts` の `pluginFromModule` / `validatePlugin`（欄ごとのテストは `host.test.ts` の `badValueForEveryPluginFieldOrTypeError`。Plugin に欄を足すと型エラーで気づける） |
-| プラグインの関数の戻り値 | `update` / `onKey` の戻り値 | 登録簿の型 `ReceivedPlugin`（関数の欄の戻り値が `unknown`。どう呼んでも確かめずに使うと型エラー）、例外は `callPlugin` が受け止める → `looksLikeModelEnoughForScreenToRead` / `looksLikeMsg` |
+| プラグインの関数の戻り値 | `update` / `onKey` の戻り値 | 登録簿の型 `ReceivedPlugin`（関数の欄の戻り値が `unknown`。どう呼んでも確かめずに使うと型エラー）、例外は `callPlugin` が受け止める → `looksLikeModelEnoughForScreenToRead`（欄がそろい、deck・history・images がオブジェクトで、images の値が Blob。画面が blob: の URL を作るため）/ `looksLikeMsg` |
 | プラグインの部品 | `mount` の戻り値、`ctx.dispatch` に渡す値、`ctx.subscribe` に渡す関数 | `components/PluginSlot.tsx`（関数のときだけ呼ぶ）、`plugins/host.ts` の `checkMsgFromPlugin` / `listenerFromPlugin`（`app/store.ts` の `pluginContext` から呼ぶ） |
 | 開いたファイル（deck.html） | 人や AI が書いた HTML | `model/parse.ts`（知らない書き方は読める範囲で読む。README「ファイル形式」） |
 | deck.html の img の src | 画像のパス | `model/images.ts` の `isImagePath`（images/ 直下・決まった拡張子だけを管理対象にする。通らないものはただの文字列として残す） |

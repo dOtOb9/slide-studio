@@ -171,7 +171,7 @@ export default function myPlugin(api) {   // api: アプリの API（plugin-api 
 | `name` | 英小文字で始まる英小文字・数字・ハイフン。自分の Msg の type の `/` より前と一致させる（ずれると Msg が届かず、コンソールに警告が出る） |
 | `apiVersion` | 作ったときの API の版（例: `'1.0'`）。下の「版の互換性」 |
 | `title` / `description` | プラグインの一覧に出す名前と説明（文字列） |
-| `update(model, msg)` | 自分の Msg を処理する純粋関数。Model を返す（`...model` を展開して作る。欄が欠けた Model や例外は断られ、Model はそのまま） |
+| `update(model, msg)` | 自分の Msg を処理する純粋関数。Model を返す（`...model` を展開して作る。欄が欠けた Model、`images` の値が Blob でない Model、例外は断られ、Model はそのまま） |
 | `onKey(model, key)` | 土台が扱わなかったキーを自分の Msg に変える。扱わないなら `null`。返してよいのは自分の Msg だけ（土台の Msg を返すと断られる）。`key.mod` は Ctrl または Mac の Cmd |
 | `toolbar.mount(container, ctx)` | container の中に DOM を作り、片付ける関数を返す。UI フレームワークに依存しない形なので、React を使わなくても作れ、アプリと React の版が違っても壊れない |
 
