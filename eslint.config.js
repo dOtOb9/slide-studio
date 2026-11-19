@@ -13,6 +13,16 @@ const nodeToolsForCiWrittenAsMjsNotTypeScript = {
   },
 }
 
+const browserScriptsEmbeddedAsRawTextIntoExportedFiles = {
+  extends: [js.configs.recommended],
+  files: ['src/**/*.js'],
+  languageOptions: {
+    ecmaVersion: 2020,
+    sourceType: 'script',
+    globals: globals.browser,
+  },
+}
+
 export default tseslint.config(
   { ignores: ['dist'] },
   {
@@ -35,4 +45,5 @@ export default tseslint.config(
     },
   },
   nodeToolsForCiWrittenAsMjsNotTypeScript,
+  browserScriptsEmbeddedAsRawTextIntoExportedFiles,
 )
