@@ -2,7 +2,7 @@ import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 const scriptFiles = import.meta.glob<string>(
-  ['/src/**/*.{ts,tsx}', '/examples/**/*.{js,mjs,cjs}', '/scripts/**/*.{js,mjs,cjs}', '/*.{ts,js,mjs,cjs}', '/tsconfig*.json'],
+  ['/src/**/*.{ts,tsx,js,mjs,cjs}', '/examples/**/*.{js,mjs,cjs}', '/scripts/**/*.{js,mjs,cjs}', '/*.{ts,js,mjs,cjs}', '/tsconfig*.json'],
   { query: '?raw', import: 'default', eager: true },
 );
 const cssFiles = import.meta.glob<string>('/src/**/*.css', { query: '?raw', import: 'default', eager: true });
@@ -88,6 +88,7 @@ describe('コードにコメントを書かない（意図は名前・型・関�
         '/src/app/update.ts',
         '/src/components/Toolbar.tsx',
         '/src/vite-env.d.ts',
+        '/src/plugins/slideshow/player.js',
         '/examples/sticky-note/plugin.js',
         '/scripts/check-pr-body.mjs',
         '/vite.config.ts',
