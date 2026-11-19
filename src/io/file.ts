@@ -237,11 +237,48 @@ export async function saveFile(
     }
   }
   if (!proceed(SOMEWHERE_ELSE_INCLUDING_DOWNLOADS)) return null;
-  const url = URL.createObjectURL(new Blob([await html(false)], { type: 'text/html' }));
+  download(new Blob([await html(false)], { type: 'text/html' }), name);
+  return { name, canReadFolder: false, embedded: false };
+}
+
+function download(blob: Blob, name: string) {
+  const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
   a.download = name;
   a.click();
   URL.revokeObjectURL(url);
-  return { name, canReadFolder: false, embedded: false };
+}
+
+export interface ExportFileType {
+  description: string;
+  mimeType: string;
+  extension: string;
+}
+
+export async function saveExportedFile(
+  suggestedName: string,
+  type: ExportFileType,
+  makeBlobAfterPickerSoUserActivationIsNotSpentOnExporting: () => Promise<Blob>,
+): Promise<boolean> {
+  const makeBlob = makeBlobAfterPickerSoUserActivationIsNotSpentOnExporting;
+  if (fsWindow.showSaveFilePicker) {
+    let target: FileHandle;
+    try {
+      target = await fsWindow.showSaveFilePicker({
+        suggestedName,
+        types: [{ description: type.description, accept: { [type.mimeType]: [`.${type.extension}`] } }],
+      });
+    } catch (e) {
+      if (isUserCancel(e)) return false;
+      throw e;
+    }
+    const blob = await makeBlob();
+    const writable = await target.createWritable();
+    await writable.write(blob);
+    await writable.close();
+    return true;
+  }
+  download(await makeBlob(), suggestedName);
+  return true;
 }

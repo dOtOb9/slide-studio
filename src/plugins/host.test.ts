@@ -4,18 +4,21 @@ import { initModel, type Model } from '../app/model';
 import { update } from '../app/update';
 import { parseDeck } from '../model/parse';
 import * as pluginApi from '../plugin-api';
-import { api, API_VERSION, isCompatible, type Plugin } from '../plugin-api';
+import { api, API_VERSION, isCompatible, type Exporter, type ExportInput, type Plugin } from '../plugin-api';
 import { pluginContext } from '../app/store';
 import sample from '../samples/sample-deck.html?raw';
 import {
   checkMsgFromPlugin,
+  exportersOf,
   listPlugins,
   MODEL_KEYS,
   pluginFromModule,
   registerPlugin,
+  runExporter,
   setPluginEnabled,
   subscribePlugins,
   unregisterPlugin,
+  type ReceivedExporter,
   type ReceivedPlugin,
 } from './host';
 
@@ -92,6 +95,7 @@ describe('registerPlugin', () => {
     update: { value: 1, message: 'update が関数ではありません' },
     onKey: { value: 'x', message: 'onKey が関数ではありません' },
     toolbar: { value: { mount: 1 }, message: 'mount がありません' },
+    exporters: { value: 'html', message: 'exporters が配列ではありません' },
   };
   it('登録簿の Plugin（ReceivedPlugin）は、関数の欄の戻り値が unknown（確かめずに使うと型エラー。Step 7a audit-1 #2）。関数でない欄はそのまま', () => {
     expectTypeOf<ReturnType<NonNullable<ReceivedPlugin['update']>>>().toBeUnknown();
@@ -290,9 +294,9 @@ describe('plugin-api', () => {
   });
 });
 
-describe('API 1.4（ctx.slideArea を足した）の後方互換', () => {
-  it.each(['1.0', '1.1', '1.2', '1.3'])('apiVersion %s のプラグインも登録でき、slideArea を使わない部品はそのまま動く', (version) => {
-    expect(API_VERSION).toBe('1.4');
+describe('API 1.5（書き出しの形式 exporters を足した）の後方互換', () => {
+  it.each(['1.0', '1.1', '1.2', '1.3', '1.4'])('apiVersion %s のプラグインも登録でき、exporters の無いプラグインの部品はそのまま動き、書き出しの一覧には出ない', (version) => {
+    expect(API_VERSION).toBe('1.5');
     const container = document.createElement('div');
     const plugin = registerPlugin(
       {
@@ -311,6 +315,113 @@ describe('API 1.4（ctx.slideArea を足した）の後方互換', () => {
     expect(container.textContent).toBe('0');
     unmount();
     expect(container.textContent).toBe('');
+    expect(exportersOf(listPlugins())).toEqual([]);
+  });
+});
+
+const ICON = '<svg viewBox="0 0 24 24"><path d="M2 3h20"/></svg>';
+const textExporter: Exporter = {
+  id: 'text',
+  title: 'テキスト',
+  extension: 'txt',
+  mimeType: 'text/plain',
+  icon: ICON,
+  export: ({ deck }) => new Blob([String(deck.slides.length)], { type: 'text/plain' }),
+};
+const withExporters = (exporters: unknown, name = 'exp') => ({ name, apiVersion: '1.5', exporters });
+const input = (): ExportInput => ({ deck: setup().deck, images: {}, fileName: 't.html' });
+
+describe('書き出しの形式（Plugin の exporters。API 1.5）', () => {
+  it('登録した書き出しの形式が、有効なプラグインの分だけ登録順に一覧に出る', () => {
+    const pdf = { ...textExporter, id: 'pdf', title: 'PDF', extension: 'pdf', mimeType: 'application/pdf', icon: undefined };
+    registerPlugin(withExporters([textExporter, pdf], 'first'), 'external');
+    registerPlugin(withExporters([textExporter], 'second'), 'external');
+    const ids = () => exportersOf(listPlugins()).map((e) => `${e.pluginName}:${e.exporter.id}`);
+    expect(ids()).toEqual(['first:text', 'first:pdf', 'second:text']);
+    setPluginEnabled('first', false);
+    expect(ids()).toEqual(['second:text']);
+  });
+
+  it('登録簿の書き出しの形式（ReceivedExporter）は、export の戻り値が unknown（確かめずに使うと型エラー）', () => {
+    expectTypeOf<ReturnType<ReceivedExporter['export']>>().toBeUnknown();
+  });
+
+  const badValueForEveryExporterFieldOrTypeError: Record<keyof Exporter, { value: unknown; message: string }> = {
+    id: { value: 'Bad Id', message: 'id は英小文字で始まる' },
+    title: { value: 3, message: 'title が空でない文字列ではありません' },
+    extension: { value: '.html', message: 'extension は英小文字・数字' },
+    mimeType: { value: 'html', message: 'mimeType が MIME 型' },
+    icon: { value: '<img src=x>', message: 'icon が SVG の文字列ではありません' },
+    export: { value: 'go', message: 'export が関数ではありません' },
+  };
+
+  it.each(Object.entries(badValueForEveryExporterFieldOrTypeError))('書き出しの形式の欄 %s に不正な値があれば、プラグインごと断る（Exporter に欄を足すと、ここに書くまで型エラー）', (key, { value, message }) => {
+    expect(() => registerPlugin(withExporters([{ ...textExporter, [key]: value }]), 'external')).toThrow(message);
+    expect(listPlugins()).toEqual([]);
+  });
+
+  it.each([
+    ['欄が欠けている（title）', { ...textExporter, title: undefined }, 'title が空でない文字列ではありません'],
+    ['title が空', { ...textExporter, title: '' }, 'title が空でない文字列ではありません'],
+    ['オブジェクトでない項目', 'text', 'exporters[0] がオブジェクトではありません'],
+    ['null の項目', null, 'exporters[0] がオブジェクトではありません'],
+  ])('%s は断る', (_, item, message) => {
+    expect(() => registerPlugin(withExporters([item]), 'external')).toThrow(message);
+    expect(listPlugins()).toEqual([]);
+  });
+
+  it('同じプラグインの中で id が重なっていたら断る（どちらを選んだかがわからなくなるため）', () => {
+    expect(() => registerPlugin(withExporters([textExporter, { ...textExporter }]), 'external')).toThrow('exporters の id が重なっています: text');
+  });
+
+  it('icon は省いてよい（土台の既定のアイコンを出す）', () => {
+    const plugin = registerPlugin(withExporters([{ ...textExporter, icon: undefined }]), 'external');
+    expect(plugin.exporters?.[0].icon).toBeUndefined();
+  });
+
+  it('icon の SVG の中身（属性やスクリプト）までは確かめない（外部プラグインはアプリと同じ権限で動き、信頼できるものだけを入れる前提のため）', () => {
+    const svgWithHandler = '<svg onload="void 0"><path d="M0 0"/></svg>';
+    const plugin = registerPlugin(withExporters([{ ...textExporter, icon: svgWithHandler }]), 'external');
+    expect(plugin.exporters?.[0].icon).toBe(svgWithHandler);
+  });
+});
+
+describe('runExporter（書き出しの形式の export を呼ぶ）', () => {
+  const entryOf = (exporter: unknown) => {
+    registerPlugin(withExporters([{ ...textExporter, export: exporter }]), 'external');
+    return exportersOf(listPlugins())[0];
+  };
+
+  it('Blob を返せばそれを使い、Deck・画像・ファイル名を渡す', async () => {
+    const spy = vi.fn(() => new Blob(['ok']));
+    const given = input();
+    const blob = await runExporter(entryOf(spy), given);
+    expect(await blob.text()).toBe('ok');
+    expect(spy).toHaveBeenCalledWith(given);
+  });
+
+  it('Promise で Blob を返してもよい', async () => {
+    const blob = await runExporter(entryOf(async () => new Blob(['later'])), input());
+    expect(await blob.text()).toBe('later');
+  });
+
+  it.each([
+    ['文字列', () => 'not a blob'],
+    ['undefined', () => undefined],
+    ['Blob でない値の Promise', async () => ({ size: 1 })],
+  ])('Blob でない値（%s）を返したら、理由付きで断る', async (_, exporter) => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await expect(runExporter(entryOf(exporter), input())).rejects.toThrow('Blob を返しませんでした');
+    expect(error).toHaveBeenCalled();
+  });
+
+  it.each([
+    ['例外を出す', () => { throw new Error('わざと'); }],
+    ['失敗する Promise を返す', () => Promise.reject(new Error('わざと'))],
+  ])('export が%sときは、理由付きで断り、アプリは止まらない', async (_, exporter) => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await expect(runExporter(entryOf(exporter), input())).rejects.toThrow('でエラーが起きました（詳しくはコンソール）');
+    expect(error).toHaveBeenCalled();
   });
 });
 

@@ -1,14 +1,18 @@
 import type { Model } from '../app/model';
 import type { KeyInput, Msg, PluginMsg } from '../app/msg';
-import { API_VERSION, isCompatible, type Plugin, type PluginApi } from '../plugin-api';
+import { API_VERSION, isCompatible, type Exporter, type ExportInput, type Plugin, type PluginApi } from '../plugin-api';
 
 export type PluginSource = 'builtin' | 'external';
 
-export type ReceivedPlugin = {
-  [K in keyof Plugin]: Plugin[K] extends ((...args: infer A) => unknown) | undefined
+type ReturnsUnknown<T> = {
+  [K in keyof T]: T[K] extends ((...args: infer A) => unknown) | undefined
     ? ((...args: A) => unknown) | undefined
-    : Plugin[K];
+    : T[K];
 };
+
+export type ReceivedExporter = Omit<Exporter, 'export'> & { export(input: ExportInput): unknown };
+
+export type ReceivedPlugin = Omit<ReturnsUnknown<Plugin>, 'exporters'> & { exporters?: readonly ReceivedExporter[] };
 
 export interface PluginEntry {
   plugin: ReceivedPlugin;
@@ -82,7 +86,66 @@ function validatePlugin(value: unknown): ReceivedPlugin {
   if (toolbar !== undefined && typeof toolbar?.mount !== 'function') {
     throw new Error(`プラグイン ${p.name} の toolbar に mount がありません`);
   }
+  validateExporters(p.name, p.exporters);
   return value as ReceivedPlugin;
+}
+
+const EXTENSION_PATTERN = /^[a-z0-9]{1,10}$/;
+const MIME_TYPE_PATTERN = /^[a-z0-9][a-z0-9.+-]*\/[a-z0-9][a-z0-9.+-]*$/i;
+const SVG_MARKUP_START = /^\s*<svg[\s>]/i;
+
+function validateExporters(pluginName: string, value: unknown) {
+  if (value === undefined) return;
+  if (!Array.isArray(value)) throw new Error(`プラグイン ${pluginName} の exporters が配列ではありません`);
+  const ids = new Set<string>();
+  value.forEach((item: unknown, i) => {
+    const where = `プラグイン ${pluginName} の exporters[${i}]`;
+    if (!item || typeof item !== 'object') throw new Error(`${where} がオブジェクトではありません`);
+    const e = item as Record<string, unknown>;
+    if (typeof e.id !== 'string' || !NAME_PATTERN.test(e.id)) {
+      throw new Error(`${where} の id は英小文字で始まる英小文字・数字・ハイフンにしてください: ${String(e.id)}`);
+    }
+    if (ids.has(e.id)) throw new Error(`プラグイン ${pluginName} の exporters の id が重なっています: ${e.id}`);
+    ids.add(e.id);
+    if (typeof e.title !== 'string' || e.title === '') throw new Error(`${where} の title が空でない文字列ではありません`);
+    if (typeof e.extension !== 'string' || !EXTENSION_PATTERN.test(e.extension)) {
+      throw new Error(`${where} の extension は英小文字・数字（点を付けない）にしてください: ${String(e.extension)}`);
+    }
+    if (typeof e.mimeType !== 'string' || !MIME_TYPE_PATTERN.test(e.mimeType)) {
+      throw new Error(`${where} の mimeType が MIME 型（例: text/html）ではありません: ${String(e.mimeType)}`);
+    }
+    if (e.icon !== undefined && !(typeof e.icon === 'string' && SVG_MARKUP_START.test(e.icon))) {
+      throw new Error(`${where} の icon が SVG の文字列ではありません`);
+    }
+    if (typeof e.export !== 'function') throw new Error(`${where} の export が関数ではありません`);
+  });
+}
+
+export interface ExporterEntry {
+  pluginName: string;
+  exporter: ReceivedExporter;
+}
+
+export function exportersOf(list: readonly PluginEntry[]): ExporterEntry[] {
+  return list
+    .filter((e) => e.enabled)
+    .flatMap(({ plugin }) => (plugin.exporters ?? []).map((exporter) => ({ pluginName: plugin.name, exporter })));
+}
+
+export async function runExporter({ pluginName, exporter }: ExporterEntry, input: ExportInput): Promise<Blob> {
+  const what = `プラグイン ${pluginName} の書き出し（${exporter.title}）`;
+  let result: unknown;
+  try {
+    result = await exporter.export(input);
+  } catch (e) {
+    console.error(`${what}でエラーが起きました`, e);
+    throw new Error(`${what}でエラーが起きました（詳しくはコンソール）`);
+  }
+  if (!(result instanceof Blob)) {
+    console.error(`${what}が Blob を返しませんでした`, result);
+    throw new Error(`${what}が Blob を返しませんでした`);
+  }
+  return result;
 }
 
 export function isPluginMsg(msg: Msg): msg is PluginMsg {

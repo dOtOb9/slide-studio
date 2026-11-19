@@ -8,6 +8,7 @@ import {
   imagesToWrite,
   isImagePath,
   lostImagesQuestion,
+  missingImagesExportQuestion,
   MAX_IMAGE_BYTES,
   mimeTypeOf,
   missingImagePaths,
@@ -273,5 +274,14 @@ describe('imagesLostBySave（別の場所への保存で表示されなくなる
     expect(text).toContain('2 枚');
     expect(text).toContain('保存を続けますか？');
     expect(text).not.toContain('フォルダへのアクセスを許可');
+  });
+});
+
+describe('missingImagesExportQuestion（書き出しの前に、読み込めていない画像を知らせる）', () => {
+  it('枚数を入れ、フォルダを読めるブラウザでだけ『フォルダへのアクセスを許可』を案内する', () => {
+    expect(missingImagesExportQuestion(3, true)).toBe(
+      '3 枚の画像を読み込めていないため、書き出したファイルでは表示されません。先に『フォルダへのアクセスを許可』で読み込んでください。書き出しを続けますか？',
+    );
+    expect(missingImagesExportQuestion(1, false)).toBe('1 枚の画像を読み込めていないため、書き出したファイルでは表示されません。書き出しを続けますか？');
   });
 });
