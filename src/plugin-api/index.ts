@@ -9,13 +9,16 @@ import {
 } from '../app/helpers';
 import type { Model } from '../app/model';
 import type { KeyInput, Msg, PluginMsg } from '../app/msg';
-import { imagePathOf, sha256Hex } from '../io/images';
+import { embedSrc as dataUriSrc, imagePathOf, sha256Hex } from '../io/images';
 import { deleteElement, insertElement, setNotes, updateElement } from '../model/commands';
 import { checkImageFile, extensionOf, imagePath, isImagePath } from '../model/images';
+import { baseCss, renderSlideHtml } from '../model/render';
+import type { ResolveSrc } from '../model/serialize';
+import type { Deck } from '../model/types';
 
-export const API_VERSION = '1.4';
+export const API_VERSION = '1.5';
 
-export type { KeyInput, Model, Msg, PluginMsg };
+export type { KeyInput, Model, Msg, PluginMsg, ResolveSrc };
 export type { Deck, Layout, Placeholder, Rect, Slide, SlideElement } from '../model/types';
 export type { ElementPatch } from '../model/commands';
 
@@ -30,6 +33,27 @@ export interface PluginView {
   mount(container: HTMLElement, ctx: PluginContext): () => void;
 }
 
+export type UsedImagesOnlyKeyedByPath = Record<string, Blob>;
+export type FileNameOfOpenedDeck = string;
+
+export interface ExportInput {
+  deck: Deck;
+  images: UsedImagesOnlyKeyedByPath;
+  fileName: FileNameOfOpenedDeck;
+}
+
+export type LowercaseExtensionWithoutDot = string;
+export type SvgMarkupUsingCurrentColor = string;
+
+export interface Exporter {
+  id: string;
+  title: string;
+  extension: LowercaseExtensionWithoutDot;
+  mimeType: string;
+  icon?: SvgMarkupUsingCurrentColor;
+  export(input: ExportInput): Blob | Promise<Blob>;
+}
+
 export interface Plugin<M extends PluginMsg = PluginMsg> {
   name: string;
   apiVersion: string;
@@ -38,11 +62,14 @@ export interface Plugin<M extends PluginMsg = PluginMsg> {
   update?(model: Model, msg: M): Model;
   onKey?(model: Model, key: KeyInput): M | null;
   toolbar?: PluginView;
+  exporters?: Exporter[];
 }
 
 export {
+  baseCss,
   checkImageFile,
   currentSlide,
+  dataUriSrc,
   deleteElement,
   edit,
   extensionOf,
@@ -53,6 +80,7 @@ export {
   insertElement,
   isBusy,
   isImagePath,
+  renderSlideHtml,
   setNotes,
   setPluginState,
   sha256Hex,
@@ -79,6 +107,9 @@ export const api = {
   isImagePath,
   checkImageFile,
   extensionOf,
+  renderSlideHtml,
+  baseCss,
+  dataUriSrc,
 };
 
 export type PluginApi = typeof api;
