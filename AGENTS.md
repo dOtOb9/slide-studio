@@ -127,6 +127,7 @@ Step 6 では「外部プラグインの title が文字列でない」「update
 | `ImagesAdded` の `images` | フォルダの読み込みとプラグインの部品が送る | `app/update.ts` → `model/images.ts` の `acceptImages`（オブジェクトでない → 何もしない。キーが画像のパスでない・値が Blob でない項目は捨ててコンソールへ） |
 | 画像の挿入で受け取るファイル | ファイル選択・貼り付け・ドロップのファイル | `plugins/images/prepare.ts` の `rejectReason`（`checkImageFile` に加えて images/ に置ける MIME 型か）と `measureImage`（読めない・大きさ 0）。だめなファイルは理由をコンソールと alert に出し、ほかは入れる。貼り付けは画像が無ければ横取りしない、ドロップはファイル以外を無視（`plugins/images/events.ts`） |
 | `images/Inserted` の `images` | 画像の挿入の部品（外部プラグインの部品からも送れる） | `plugins/images/update.ts` の `acceptInsertions`（配列でない → 何もしない。パスが `isImagePath` を通らない・中身が `Model.images` に無い・大きさが正の有限な数でない項目は捨ててコンソールへ） |
+| プラグインの書き出しの形式 | Plugin の `exporters` の各欄、`export` の戻り値 | `plugins/host.ts` の `validateExporters`（配列でない・欄の形が違う・id が重なる → プラグインごと登録しない。欄ごとのテストは `host.test.ts` の `badValueForEveryExporterFieldOrTypeError`。icon の SVG の中身までは確かめない）、`runExporter`（例外・Blob でない値は理由付きで断り、`io/commands.ts` の `exportDeck` が画面に出す） |
 
 **残している穴**: 部品が土台の Msg（`Undo` など）を dispatch したとき、type の形は確かめるが、中身（`DeckLoaded` の deck など）は確かめない。
 外部プラグインは「信頼できるものだけを入れる」前提なのでここまでにしている。

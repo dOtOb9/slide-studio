@@ -87,6 +87,7 @@ src/
     usePlugins.ts        プラグインの一覧を読む
   components/     ← 画面部品（Model を読んで描画し、Msg を送る）
     Toolbar.tsx        開く・元に戻す・やり直し
+    ExportButtons.tsx  プラグインの書き出しの形式ごとのボタン（保存先を選んで書き出す）
     IconButton.tsx     アイコンだけのボタン（説明はツールチップ）
     PluginSlot.tsx     プラグインの部品を置く場所（mount / unmount を呼ぶ）
     PluginManager.tsx  プラグインの一覧（有効／無効・読み込み）
@@ -157,6 +158,10 @@ export default function myPlugin(api) {   // api: アプリの API（plugin-api 
         return () => {};                   // 片付ける関数を返す
       },
     },
+    exporters: [{                          // 任意。書き出しの形式（1.5 から。下の「書き出しの形式」）
+      id: 'notes', title: 'ノート', extension: 'txt', mimeType: 'text/plain',
+      export: ({ deck }) => new Blob([deck.slides.map((s) => s.notes).join('\n')], { type: 'text/plain' }),
+    }],
   };
 }
 ```
@@ -171,6 +176,8 @@ export default function myPlugin(api) {   // api: アプリの API（plugin-api 
 | `imagePathOf(blob)` | 画像の Blob から置き場所のパス `images/<SHA-256>.<拡張子>` を作る（非同期。対応しない型なら `null`）。1.2 から |
 | `sha256Hex(blob)` / `imagePath(hash, mimeType)` / `isImagePath(src)` | 上の部品: 中身のハッシュ（非同期）、ハッシュと型からパス、管理対象の画像パスか。1.2 から |
 | `checkImageFile(file)` / `extensionOf(mimeType)` | 受け取った画像のファイルを確かめる: だめなら理由の文字列（File でない・空・画像でない・50MB 超）、images/ に置ける型なら拡張子（置けなければ `null`）。1.3 から |
+| `renderSlideHtml(deck, slide, resolveSrc?)` / `baseCss(deck)` | 編集画面・サムネイルと同じスライドの描画（`<section>` の HTML）と、その下に敷く CSS（Shadow DOM の中で `deck.css` の前に置く）。`resolveSrc` は images/ の画像のパスを表示用の src に変える関数。1.5 から |
+| `dataUriSrc(images)` | 画像（パス → Blob）を data URI にして、`resolveSrc` に渡せる関数を作る（非同期。中身の無いパスはそのまま）。1.5 から |
 | `version` | アプリの API の版 |
 
 **Plugin の欄**（`name` と `apiVersion` のほかは任意。キー操作だけ・部品だけのプラグインもありうる）
@@ -183,6 +190,7 @@ export default function myPlugin(api) {   // api: アプリの API（plugin-api 
 | `update(model, msg)` | 自分の Msg を処理する純粋関数。Model を返す（`...model` を展開して作る。欄が欠けた Model、`images` の値が Blob でない Model、例外は断られ、Model はそのまま） |
 | `onKey(model, key)` | 土台が扱わなかったキーを自分の Msg に変える。扱わないなら `null`。返してよいのは自分の Msg だけ（土台の Msg を返すと断られる）。`key.mod` は Ctrl または Mac の Cmd |
 | `toolbar.mount(container, ctx)` | container の中に DOM を作り、片付ける関数を返す。UI フレームワークに依存しない形なので、React を使わなくても作れ、アプリと React の版が違っても壊れない |
+| `exporters` | 書き出しの形式の配列（下の「書き出しの形式」）。土台がツールバーにボタンを出し、保存先を選ばせて書く。形が違えばプラグインごと登録しない。1.5 から |
 
 | ctx の中身 | 用途 |
 |---|---|
@@ -190,6 +198,20 @@ export default function myPlugin(api) {   // api: アプリの API（plugin-api 
 | `dispatch(msg)` | Msg を送る（状態を変える唯一の入口）。Msg の形（type が文字列のオブジェクト）でないものは捨てられる |
 | `subscribe(fn)` | Model が変わるたびに `fn` を呼ぶ。戻り値を呼ぶと外れる。`fn` が例外を出しても、アプリと他の部品は止まらない |
 | `slideArea()` | スライドを表示している作業領域の要素（ファイルのドロップ先などに使う）。無ければ `null`。土台の内部のクラス名（`.stage` など）は API ではないので、こちらを使う。1.4 から |
+
+部品の ctx は 1.5 では変わらない（書き出しは部品からでなく、土台が出すボタンから始まる）。
+
+**書き出しの形式**（`exporters` の各項目。1.5 から）: 土台が、有効なプラグインの形式ごとにツールバーへアイコンのボタンを出す。
+押されると先に保存先を選ばせ（ファイルシステムアクセス API が無ければダウンロード）、そのあとで `export` を呼んで、返った Blob をそのファイルに書く。
+候補のファイル名は「開いたファイルの名前（拡張子なし）-id.extension」。読み込めていない画像があれば、書き出す前に続けるかを聞く。
+
+| 欄 | 約束 |
+|---|---|
+| `id` | プラグインの中で重ならない、英小文字で始まる英小文字・数字・ハイフン。ファイル名の候補にも使う |
+| `title` | 形式の名前（空でない文字列）。ボタンのツールチップと、保存先のピッカーの種類の説明に出る |
+| `extension` / `mimeType` | 拡張子（点を付けない英小文字・数字。例: `html`）と MIME 型（例: `text/html`） |
+| `icon` | 任意。ボタンのアイコンの SVG の文字列（`<svg` で始まる。24×24 の viewBox で `stroke="currentColor"` にすると他のボタンとそろう）。無ければ既定のアイコン |
+| `export({ deck, images, fileName })` | Blob か Promise<Blob> を返す。`images` は Deck が使っている、中身のある画像だけ（パス → Blob）。例外・Blob でない値は断られ、理由が画面に出る |
 
 **Model の主な欄**（読むときの約束。書き換えは `edit` / `setPluginState` などを通す）
 
@@ -244,6 +266,7 @@ export default function myPlugin(api) {   // api: アプリの API（plugin-api 
 | 1.2 | images/ の画像（`Model.images`、Msg の `ImagesAdded`、`imagePathOf` / `sha256Hex` / `imagePath` / `isImagePath`） |
 | 1.3 | 受け取った画像のファイルを確かめる `checkImageFile` / `extensionOf`（画像の挿入のプラグインが、土台と同じ上限・同じ対応形式で断れるように） |
 | 1.4 | 部品の ctx に `slideArea()`（スライドの表示領域の要素。プラグインが土台の内部のクラス名に頼らずにドロップ先を決められるように） |
+| 1.5 | Plugin の `exporters`（書き出しの形式。土台がボタンを出して保存先を選ばせる）と、書き出しに使う `renderSlideHtml` / `baseCss` / `dataUriSrc` |
 
 型の一覧は [src/plugin-api/index.ts](src/plugin-api/index.ts)。
 
