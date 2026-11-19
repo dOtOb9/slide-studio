@@ -97,3 +97,9 @@ export function acceptImages(value: unknown): { images: Record<string, Blob>; re
   }
   return { images, rejected };
 }
+
+export function missingImagesExportQuestion(count: number, browserOffersFolderAccessButton: boolean): string {
+  const lead = `${count} 枚の画像を読み込めていないため、書き出したファイルでは表示されません`;
+  if (browserOffersFolderAccessButton) return `${lead}。先に『フォルダへのアクセスを許可』で読み込んでください。書き出しを続けますか？`;
+  return `${lead}。書き出しを続けますか？`;
+}

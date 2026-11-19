@@ -3,6 +3,7 @@ import { isDirty, needsFolderAccess } from '../app/model';
 import { useDispatch, useModel } from '../app/store';
 import { usePlugins } from '../hooks/usePlugins';
 import { grantFolderAccess, openDeck, saveDeck } from '../io/commands';
+import { ExportButtons } from './ExportButtons';
 import { IconButton } from './IconButton';
 import { PluginManager } from './PluginManager';
 import { PluginSlot } from './PluginSlot';
@@ -40,6 +41,8 @@ export function Toolbar() {
           </IconButton>
         )}
       </div>
+
+      <ExportButtons />
 
       <div className="group">
         <IconButton label="元に戻す (Ctrl+Z)" disabled={!canUndo} onClick={() => dispatch({ type: 'Undo' })}>

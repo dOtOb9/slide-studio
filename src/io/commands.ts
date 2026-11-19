@@ -6,10 +6,13 @@ import {
   imagesToWrite,
   lostImagesQuestion,
   missingImagePaths,
+  missingImagesExportQuestion,
   type SaveDestination,
 } from '../model/images';
+import { exportFileName } from '../model/exportName';
 import { parseDeck } from '../model/parse';
-import { openFile, readImageFiles, requestFolder, saveFile } from './file';
+import { runExporter, type ExporterEntry } from '../plugins/host';
+import { openFile, readImageFiles, requestFolder, saveExportedFile, saveFile } from './file';
 import { deckHtml } from './images';
 
 const dispatch = (msg: Msg) => useStore.getState().dispatch(msg);
@@ -67,5 +70,21 @@ export async function saveDeck(saveAs = false) {
     if (saved.embedded) window.alert('フォルダに書けないので、画像を deck.html の中に入れて保存しました');
   } catch (e) {
     report('保存', e);
+  }
+}
+
+export async function exportDeck(entry: ExporterEntry) {
+  const { deck, fileName, images, canReadFolder } = getModel();
+  const missing = missingImagePaths(deck, images).length;
+  if (missing > 0 && !window.confirm(missingImagesExportQuestion(missing, canReadFolder))) return;
+  const { exporter } = entry;
+  try {
+    await saveExportedFile(
+      exportFileName(fileName, exporter.id, exporter.extension),
+      { description: exporter.title, mimeType: exporter.mimeType, extension: exporter.extension },
+      () => runExporter(entry, { deck, images: imagesToWrite(deck, images), fileName }),
+    );
+  } catch (e) {
+    report('書き出し', e);
   }
 }
