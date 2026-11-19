@@ -9,7 +9,7 @@ import {
 } from '../app/helpers';
 import type { Model } from '../app/model';
 import type { KeyInput, Msg, PluginMsg } from '../app/msg';
-import { embedSrc as dataUriSrc, imagePathOf, sha256Hex } from '../io/images';
+import { dataUriSrc, imagePathOf, sha256Hex } from '../io/images';
 import { deleteElement, insertElement, setNotes, updateElement } from '../model/commands';
 import { checkImageFile, extensionOf, imagePath, isImagePath } from '../model/images';
 import { baseCss, renderSlideHtml } from '../model/render';

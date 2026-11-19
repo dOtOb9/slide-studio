@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseDeck } from '../model/parse';
-import { deckHtml, embedSrc } from './images';
+import { deckHtml, dataUriSrc } from './images';
 
 const A = `images/${'a'.repeat(64)}.png`;
 const B = `images/${'b'.repeat(64)}.svg`;
@@ -30,9 +30,9 @@ describe('deckHtml', () => {
   });
 });
 
-describe('embedSrc', () => {
+describe('dataUriSrc', () => {
   it('型が空の Blob は、パスの拡張子から型を決める', async () => {
-    const resolve = await embedSrc({ [B]: new Blob(['<svg/>']) });
+    const resolve = await dataUriSrc({ [B]: new Blob(['<svg/>']) });
     expect(resolve(B)).toBe(`data:image/svg+xml;base64,${btoa('<svg/>')}`);
     expect(resolve(A)).toBe(A);
   });

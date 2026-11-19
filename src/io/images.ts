@@ -39,7 +39,7 @@ function toDataUri(blob: Blob, fallbackType: string): Promise<string> {
   });
 }
 
-export async function embedSrc(images: Record<string, Blob>): Promise<ResolveSrc> {
+export async function dataUriSrc(images: Record<string, Blob>): Promise<ResolveSrc> {
   const uris: Record<string, string> = {};
   for (const [path, blob] of Object.entries(images)) {
     uris[path] = await toDataUri(blob, mimeTypeOf(path) ?? 'application/octet-stream');
@@ -49,5 +49,5 @@ export async function embedSrc(images: Record<string, Blob>): Promise<ResolveSrc
 
 export async function deckHtml(deck: Deck, images: Record<string, Blob>, imagesWrittenToFolder: boolean): Promise<string> {
   if (imagesWrittenToFolder) return serializeDeck(deck);
-  return serializeDeck(deck, await embedSrc(imagesToWrite(deck, images)));
+  return serializeDeck(deck, await dataUriSrc(imagesToWrite(deck, images)));
 }
