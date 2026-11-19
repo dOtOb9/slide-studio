@@ -156,6 +156,7 @@ afterEach(() => {
 interface Player {
   window: DomWindow;
   popup: DomWindow | null;
+  openedWindowNames: string[];
   key(key: string, target?: DomWindow): void;
   current(): number;
   shownSlideTitle(): string | undefined;
@@ -165,10 +166,16 @@ async function play({ popupBlocked = false, screen = { width: 960, height: 800 }
   const html = await exportHtml();
   const popup = popupBlocked ? null : new JSDOM('<!doctype html><html><head></head><body></body></html>').window;
   if (popup) openedWindows.push(popup);
+  const openedWindowNames: string[] = [];
   const { window } = new JSDOM(html, {
     runScripts: 'dangerously',
     beforeParse(w) {
-      Object.assign(w, { open: () => popup });
+      Object.assign(w, {
+        open: (_url: string, name: string) => {
+          openedWindowNames.push(name);
+          return popup;
+        },
+      });
       Object.defineProperty((w as unknown as typeof globalThis).HTMLElement.prototype, 'clientWidth', {
         get(this: HTMLElement) {
           return this.classList.contains('screen') ? screen.width : 0;
@@ -186,6 +193,7 @@ async function play({ popupBlocked = false, screen = { width: 960, height: 800 }
   return {
     window,
     popup,
+    openedWindowNames,
     key(key, target = window) {
       target.document.dispatchEvent(new (target as unknown as typeof globalThis).KeyboardEvent('keydown', { key, bubbles: true }));
     },
@@ -276,6 +284,14 @@ describe('発表用 HTML の表示（JS）', () => {
     expect(p.current()).toBe(4);
     expect(doc.querySelector('[data-presenter="notes"]')!.textContent).toBe('画像のスライドのノート\n2行目 </script> & <b>');
     expect(doc.querySelector('[data-presenter="next"] .slide')!.shadowRoot?.innerHTML ?? '').toBe('');
+  });
+
+  it('発表者の画面は名前の無い新しいウィンドウ（_blank）で開く（同時に開いた別の発表用 HTML の発表者の画面を使い回さないように。Step 9 audit-1 #3）', async () => {
+    const p = await play();
+    p.key('p');
+    expect(p.openedWindowNames).toEqual(['_blank']);
+    p.key('p');
+    expect(p.openedWindowNames).toEqual(['_blank']);
   });
 
   it('別ウィンドウを開けない（ポップアップを止められた）ときは、ノートを元の画面に重ねて出す', async () => {

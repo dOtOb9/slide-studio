@@ -96,7 +96,7 @@
       presenter.window.focus();
       return;
     }
-    const win = window.open('', 'slideshow-presenter', 'width=1100,height=700');
+    const win = window.open('', '_blank', 'width=1100,height=700');
     if (!win) {
       toggleNotesOverlay();
       return;
